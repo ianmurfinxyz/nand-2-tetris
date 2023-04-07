@@ -399,6 +399,54 @@ fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize
 	}
 }
 
+// tests to do:
+// - happy path tests; expected results
+// - error path tests; expected errors
+// - full program tests; expected machine code
+// - junk data tests; should handle junk data
+// - limits tests; symbols that are at size limit, over size limit, 1 less etc
+
+#[cfg(test)]
+mod tests {
+	use std::collections::HashMap;
+	use super::*;
+
+	#[test]
+	fn test_int_ains(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		assert_eq!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 1234})));
+		assert_ne!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 4321})));
+		assert_eq!(parse_ins("@32767", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 32767})));
+		assert_eq!(parse_ins("@", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::AInsMissingArg));
+		assert_eq!(parse_ins("@32768", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
+		assert_eq!(parse_ins("@999999", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
+
+		let sym_limit_int = "@".to_string() + "9".repeat(MAX_SYM_LEN).borrow();
+		assert_eq!(parse_ins(&sym_limit_int, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
+
+		let sym_overflow_int = "@".to_string() + "9".repeat(MAX_SYM_LEN + 1).borrow();
+		assert_eq!(parse_ins(&sym_overflow_int, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::SymOverflow));
+
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	//fn test_sym_ains(){
+		//let mut sym_key_table = HashMap::new();
+		//let mut sym_val_table = vec![];
+
+		//assert_eq!(parse_ins("@1234", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 1234})));
+
+		//assert_eq!(parse_ins("@weed", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{i_sym: 0})));
+		//assert!(sym_key_table.get_key_value(0));
+	//}
+
+
+}
+
+
 fn main() {
 	let mut sym_key_table = HashMap::new();
 	let mut sym_val_table = vec![];
