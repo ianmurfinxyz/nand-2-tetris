@@ -6,6 +6,8 @@ pub const MAX_MNE_LEN: usize = 3;
 pub const MNE_BUF_LEN: usize = MAX_MNE_LEN + 1;
 pub const MAX_INT_VAL: u16 = 32767;
 
+const DEFAULT_RAM_ADDRESS: u16 = 0;
+
 pub type SymBuf = [u8; MAX_SYM_LEN];
 pub type MneBuf = [u8; MNE_BUF_LEN];
 
@@ -349,7 +351,7 @@ fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize
 				},
 				Entry::Vacant(entry) => {
 					let i_sym = sym_val_table.len();
-					sym_val_table.push((0, SymUse::ARAM));
+					sym_val_table.push((DEFAULT_RAM_ADDRESS, SymUse::ARAM));
 					*entry.insert(i_sym)
 				},
 			};
