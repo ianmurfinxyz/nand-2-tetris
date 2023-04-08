@@ -373,10 +373,11 @@ fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize
 				},
 				Entry::Vacant(entry) => {
 					let i_sym = sym_val_table.len();
-					sym_val_table.push((ins_ptr + 1, SymUse::LROM));
+					sym_val_table.push((0, SymUse::LROM));
 					*entry.insert(i_sym)
 				},
 			};
+			sym_val_table[i_sym] = (ins_ptr + 1, SymUse::LROM);
 			Ok(Some(Ins::L1{i_sym}))
 		},
 		DFA::CFirst => {
