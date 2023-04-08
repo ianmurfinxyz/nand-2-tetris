@@ -235,10 +235,10 @@ pub enum ParseError {
 	AInsMissingArg,
 	LInsMissingSym,
 	LInsMissingClose,
-	CInsNoEffect,
 	SymOverflow,
 	IntOverflow,
 	NotASCII,
+	CInsNop,
 }
 
 pub type ParseResult = Result<Option<Ins>, ParseError>;
@@ -490,7 +490,7 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 			Ok(Some(Ins::L1{sym_id}))
 		},
 		DFA::CFirst => {
-			Err(ParseError::CInsNoEffect)
+			Err(ParseError::CInsNop)
 		},
 		DFA::CComp => {
 			let dest = DestMne::from_mne_buf(mb0)?;
@@ -510,13 +510,6 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 		},
 	}
 }
-
-// tests to do:
-// - happy path tests; expected results
-// - error path tests; expected errors
-// - full program tests; expected machine code
-// - junk data tests; should handle junk data
-// - limits tests; symbols that are at size limit, over size limit, 1 less etc
 
 #[cfg(test)]
 mod tests {
@@ -617,6 +610,19 @@ mod tests {
 	}
 
 	#[test]
+	fn test_malformed_ains(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// Malformed symbols (or malformed integers) should be detected.
+		assert_eq!(parse_ins("@4foo", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::ExpectedDigit{found: 'f', pos: 2}));
+
+		// Erroneous a-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
 	fn test_lins_symbol_table_population(){
 		let mut sym_key_table = HashMap::new();
 		let mut sym_val_table = vec![];
@@ -652,6 +658,30 @@ mod tests {
 
 		// A value should exist for every symbol.
 		assert!(sym_val_table.len() == TEST_SIZE);
+	}
+
+	#[test]
+	fn test_malformed_lins(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// L-instructions with no symbol should be detected.
+		assert_eq!(parse_ins("(", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::LInsMissingSym));
+
+		// Unexpected symbol after '(' should be detected.
+		assert_eq!(parse_ins("()", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::ExpectedFirstSymChar{found: ')', pos: 1}));
+		assert_eq!(parse_ins("(-", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::ExpectedFirstSymChar{found: '-', pos: 1}));
+		assert_eq!(parse_ins("(+", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::ExpectedFirstSymChar{found: '+', pos: 1}));
+
+		// Malformed symbols which start with a digit should be detected.
+		assert_eq!(parse_ins("(4foo", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::ExpectedFirstSymChar{found: '4', pos: 1}));
+
+		// L-instructions with no close should be detected.
+		assert_eq!(parse_ins("(foo", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::LInsMissingClose));
+
+		// Erroneous l-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
 	}
 
 	#[test]
@@ -741,6 +771,80 @@ mod tests {
 		}
 
 		// C-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_unknown_cins_error(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// Jibberish dest should be detected as unknown.
+		let mut mne_type = Some(MneType::Dest);
+		let mut mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, ' ' as u8];
+		let mut ins = format!("jib={}", CompMne::CompNotD.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Long jibberish dest should be detected as unknown.
+		mne_type = None;
+		mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, 'b' as u8];
+		ins = format!("jibberish={}", CompMne::CompNotD.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Jibberish comp should be detected as unknown.
+		mne_type = Some(MneType::Comp);
+		mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, ' ' as u8];
+		ins = format!("{}=jib", DestMne::DestD.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Long jibberish comp should be detected as unknown.
+		mne_type = Some(MneType::Comp);
+		mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, 'b' as u8];
+		ins = format!("{}=jibberish", DestMne::DestD.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Jibberish jump should be detected as unknown.
+		mne_type = Some(MneType::Jump);
+		mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, ' ' as u8];
+		ins = format!("{}={};jib", DestMne::DestD.as_str(), CompMne::CompM.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Long jibberish jump should be detected as unknown.
+		mne_type = Some(MneType::Jump);
+		mne_buf = ['j' as u8, 'i' as u8, 'b' as u8, 'b' as u8];
+		ins = format!("{}={};jibberish", DestMne::DestD.as_str(), CompMne::CompM.as_str());
+		assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::UnknownMne{mne_type, mne_buf}));
+
+		// Erroneous c-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_nop_cins(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// Stand-along comp c-instructions have no effect and should be detected.
+		for comp in all::<CompMne>().collect::<Vec<_>>() {
+			let ins = format!("{}", comp.as_str());
+			assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::CInsNop));
+		}
+
+		// Erroneous c-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_unicode_not_supported(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// Unicode is not supported and should be detected.
+		assert_eq!(parse_ins("语言处理", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::NotASCII));
+
 		assert!(sym_key_table.is_empty());
 		assert!(sym_val_table.is_empty());
 	}
