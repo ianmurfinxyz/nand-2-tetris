@@ -155,9 +155,9 @@ impl JumpMne {
 
 #[derive(Debug, PartialEq)]
 pub enum Ins {
-	A1{c_int: u16},
-	A2{i_sym: usize},
-	L1{i_sym: usize},
+	A1{cint: u16},
+	A2{sym_id: usize},
+	L1{sym_id: usize},
 	C1{dest: DestMne, comp: CompMne},
 	C2{dest: DestMne, comp: CompMne, jump: JumpMne},
 	C3{comp: CompMne, jump: JumpMne},
@@ -170,6 +170,7 @@ pub enum ParseError {
 	ExpectedSymChar{found: char, pos: usize},
 	ExpectedDigit{found: char, pos: usize},
 	UnexpectedChar{found: char, pos: usize},
+	DuplicateLabel,
 	AInsMissingArg,
 	LInsMissingSym,
 	LInsMissingClose,
@@ -213,7 +214,7 @@ pub type ParseResult = Result<Option<Ins>, ParseError>;
 /// ```
 /// let mut sym_key_table = HashMap::new();
 /// let mut sym_val_table = vec![];
-/// assert_eq!(parse_ins("@123", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 123})));
+/// assert_eq!(parse_ins("@123", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 123})));
 /// assert_eq!(parse_ins("#comment\n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
 /// ```
 pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize>,
@@ -367,30 +368,28 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 			Err(ParseError::AInsMissingArg)
 		},
 		DFA::AInt => {
-			let c_int = match unsafe {std::str::from_utf8_unchecked(&sb0[..si0])}.parse::<u16>() {
+			let cint = match unsafe {std::str::from_utf8_unchecked(&sb0[..si0])}.parse::<u16>() {
 				Ok(i) => i,
 				Err(_) => return Err(ParseError::IntOverflow),
 			};
-			if c_int > MAX_INT_VAL {
+			if cint > MAX_INT_VAL {
 				return Err(ParseError::IntOverflow)
 			}
-			Ok(Some(Ins::A1{c_int}))
+			Ok(Some(Ins::A1{cint}))
 		},
 		DFA::ASym => {
-			let sym = unsafe {
-				std::str::from_utf8_unchecked(&sb0[..si0])
-			};
-			let i_sym = match sym_key_table.entry(String::from(sym.borrow())) {
+			let sym = unsafe { std::str::from_utf8_unchecked(&sb0[..si0]) };
+			let sym_id = match sym_key_table.entry(String::from(sym.borrow())) {
 				Entry::Occupied(entry) => {
 					*entry.get()
 				},
 				Entry::Vacant(entry) => {
-					let i_sym = sym_val_table.len();
+					let sym_id = sym_val_table.len();
 					sym_val_table.push((DEFAULT_RAM_ADDRESS, SymUse::ARAM));
-					*entry.insert(i_sym)
+					*entry.insert(sym_id)
 				},
 			};
-			Ok(Some(Ins::A2{i_sym}))
+			Ok(Some(Ins::A2{sym_id}))
 		},
 		DFA::LFirst => {
 			Err(ParseError::LInsMissingSym)
@@ -399,21 +398,24 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 			Err(ParseError::LInsMissingClose)
 		},
 		DFA::LClose => {
-			let sym = unsafe {
-				std::str::from_utf8_unchecked(&sb0[..si0])
-			};
-			let i_sym = match sym_key_table.entry(String::from(sym.borrow())) {
+			let sym = unsafe { std::str::from_utf8_unchecked(&sb0[..si0]) };
+			let sym_val = (ins_ptr + 1, SymUse::LROM);
+			let sym_id = match sym_key_table.entry(String::from(sym.borrow())) {
 				Entry::Occupied(entry) => {
-					*entry.get()
+					let sym_id = *entry.get();
+					if sym_val_table[sym_id].1 == SymUse::LROM {
+						return Err(ParseError::DuplicateLabel)
+					}
+					sym_val_table[sym_id] = sym_val;
+					sym_id
 				},
 				Entry::Vacant(entry) => {
-					let i_sym = sym_val_table.len();
-					sym_val_table.push((0, SymUse::LROM));
-					*entry.insert(i_sym)
+					let sym_id = sym_val_table.len();
+					sym_val_table.push(sym_val);
+					*entry.insert(sym_id)
 				},
 			};
-			sym_val_table[i_sym] = (ins_ptr + 1, SymUse::LROM);
-			Ok(Some(Ins::L1{i_sym}))
+			Ok(Some(Ins::L1{sym_id}))
 		},
 		DFA::CFirst => {
 			Err(ParseError::CInsNoEffect)
@@ -450,20 +452,58 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_int_ains(){
+	fn test_blank_and_comment_lines(){
 		let mut sym_key_table = HashMap::new();
 		let mut sym_val_table = vec![];
 
-		assert_eq!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 1234})));
-		assert_ne!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 4321})));
-		assert_eq!(parse_ins("@32767", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 32767})));
+		// Blank lines should be reported as a valid but empty result.
+		assert_eq!(parse_ins("", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+		assert_eq!(parse_ins("\n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+		assert_eq!(parse_ins("		\n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+		assert_eq!(parse_ins("        \n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+
+		// Comment-only lines should be reported as a valid but empty result.
+		assert_eq!(parse_ins("#        \n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+		assert_eq!(parse_ins("#comment", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+		assert_eq!(parse_ins("#comment\n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+
+		// Blank and comment lines should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_ains_int_parsing(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// Well formed integers should be correctly parsed.
+		assert_eq!(parse_ins("@0", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 0})));
+		assert_eq!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 1234})));
+		assert_ne!(parse_ins("@1234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 4321})));
+		assert_eq!(parse_ins("@32767", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 32767})));
+
+		// Malformed a-ins with missing args should be detected.
 		assert_eq!(parse_ins("@", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::AInsMissingArg));
+
+		// Overflows of Hack RAM/ROM should be detected.
 		assert_eq!(parse_ins("@32768", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
 		assert_eq!(parse_ins("@999999", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
 
+		// Whitespace should be ignored.
+		assert_eq!(parse_ins("@3 2 7 6 7", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 32767})));
+		assert_eq!(parse_ins("@3	27 6 7", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 32767})));
+		assert_eq!(parse_ins("@9 9 9 9 9 9", 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
+
+		// Comments should be ignored.
+		assert_eq!(parse_ins("@1#234", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 1})));
+		assert_eq!(parse_ins("@12    #@34", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 12})));
+
+		// Max symbol length integer should be detected as an int overflow (not overflow the symbol buffer).
 		let sym_limit_int = "@".to_string() + "9".repeat(MAX_SYM_LEN).borrow();
 		assert_eq!(parse_ins(&sym_limit_int, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::IntOverflow));
 
+		// Overflowing the symbol buffer should be detected.
 		let sym_overflow_int = "@".to_string() + "9".repeat(MAX_SYM_LEN + 1).borrow();
 		assert_eq!(parse_ins(&sym_overflow_int, 0, &mut sym_key_table, &mut sym_val_table), Err(ParseError::SymOverflow));
 
@@ -471,17 +511,109 @@ mod tests {
 		assert!(sym_val_table.is_empty());
 	}
 
-	//fn test_sym_ains(){
-		//let mut sym_key_table = HashMap::new();
-		//let mut sym_val_table = vec![];
+	#[test]
+	fn test_ains_symbol_table_population(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
 
-		//assert_eq!(parse_ins("@1234", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 1234})));
+		const TEST_SIZE: usize = 20;
 
-		//assert_eq!(parse_ins("@weed", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{i_sym: 0})));
-		//assert!(sym_key_table.get_key_value(0));
-	//}
+		for i in 0..TEST_SIZE {
+			let var = format!("var{}", i);
+			let ins = format!("@{}", var);
 
+			// Each existing symbol encountered should not declare a new variable.
+			for _repeat in 0..3 {
 
+				// Each new symbol encountered should declare a new variable.
+				assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{sym_id: i})));
+
+				// Mapped value of hash map should be the correct index into the value table.
+				assert_eq!(sym_key_table.get_key_value(&var), Some((&var, &i)));
+
+				// New variables should be assigned the default ram address and be correctly
+				// identified as being used to store RAM addresses.
+				assert_eq!(sym_val_table[i], (DEFAULT_RAM_ADDRESS, SymUse::ARAM));
+			}
+		}
+
+		// Repeats should not of populated new variables.
+		assert!(sym_key_table.len() == TEST_SIZE);
+
+		// A value should exist for every symbol.
+		assert!(sym_val_table.len() == TEST_SIZE);
+	}
+
+	#[test]
+	fn test_lins_symbol_table_population(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		const TEST_SIZE: usize = 20;
+
+		for sym_id in 0..TEST_SIZE {
+			let sym = format!("label{}", sym_id);
+			let ins = format!("({})", sym);
+
+			let ins_ptr = 0u16;
+
+			// Each new symbol encountered should declare a new label.
+			assert_eq!(parse_ins(&ins, ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::L1{sym_id})));
+
+			// Mapped value of hash map should be the correct index into the value table.
+			assert_eq!(sym_key_table.get_key_value(&sym), Some((&sym, &sym_id)));
+
+			// New labels should be assigned the next ROM address and be correctly
+			// identified as being used to store ROM addresses.
+			assert_eq!(sym_val_table[sym_id], (ins_ptr + 1, SymUse::LROM));
+
+			// Duplication errors should be robust in the face of multiple detections.
+			for _repeat in 0..3 {
+
+				// Duplicate labels should be identified as an error (cannot jump to 2 instructions).
+				assert_eq!(parse_ins(&ins, ins_ptr, &mut sym_key_table, &mut sym_val_table), Err(ParseError::DuplicateLabel));
+			}
+		}
+
+		// Duplication errors should not of populated new variables.
+		assert!(sym_key_table.len() == TEST_SIZE);
+
+		// A value should exist for every symbol.
+		assert!(sym_val_table.len() == TEST_SIZE);
+	}
+
+	#[test]
+	fn test_mixed_symbol_table_population(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		let var_num = 0usize;
+		let mut ins_ptr = 0u16;
+
+		// Symbol foo is new so should be assumed to be a variable.
+		assert_eq!(parse_ins("@foo", ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{sym_id: var_num})));
+		assert_eq!(sym_key_table.get("foo"), Some(&var_num));
+		assert_eq!(sym_val_table.len(), var_num + 1);
+		assert_eq!(sym_val_table[var_num], (DEFAULT_RAM_ADDRESS, SymUse::ARAM));
+
+		ins_ptr += 1;
+
+		// Label using symbol foo is encountered; foo should now be overriden to a label.
+		assert_eq!(parse_ins("(foo)", ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::L1{sym_id: var_num})));
+		assert_eq!(sym_key_table.get("foo"), Some(&var_num));
+		assert_eq!(sym_val_table.len(), var_num + 1);
+
+		let foo_ins_ptr = ins_ptr + 1;
+		assert_eq!(sym_val_table[var_num], (foo_ins_ptr, SymUse::LROM));
+
+		ins_ptr += 1;
+
+		// Symbol foo is old, and a label, and should continue to be identified as such.
+		assert_eq!(parse_ins("@foo", ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{sym_id: var_num})));
+		assert_eq!(sym_key_table.get("foo"), Some(&var_num));
+		assert_eq!(sym_val_table.len(), var_num + 1);
+		assert_eq!(sym_val_table[var_num], (foo_ins_ptr, SymUse::LROM));
+	}
 }
 
 
