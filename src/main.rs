@@ -1,5 +1,6 @@
 use std::collections::hash_map::{HashMap, Entry};
 use std::borrow::Borrow;
+use enum_iterator::Sequence;
 
 pub const MAX_SYM_LEN: usize = 255;
 pub const MAX_MNE_LEN: usize = 3;
@@ -11,20 +12,20 @@ pub const DEFAULT_RAM_ADDRESS: u16 = 0;
 pub type SymBuf = [u8; MAX_SYM_LEN];
 pub type MneBuf = [u8; MNE_BUF_LEN];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum SymUse {
 	ARAM,
 	LROM,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum MneType {
 	Dest,
 	Comp,
 	Jump,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Sequence, Clone, Copy)]
 pub enum DestMne {
 	DestM,
 	DestD,
@@ -35,7 +36,7 @@ pub enum DestMne {
 	DestADM,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Sequence, Clone, Copy)]
 pub enum CompMne {
 	Comp0,
 	Comp1,
@@ -67,7 +68,7 @@ pub enum CompMne {
 	CompDOrM,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Sequence, Clone, Copy)]
 pub enum JumpMne {
 	JumpJgt,
 	JumpJeq,
@@ -92,6 +93,19 @@ impl DestMne {
 			"AD  " => Ok(DestMne::DestAD),
 			"ADM " => Ok(DestMne::DestADM),
 			_      => Err(ParseError::UnknownMne{mne_type: Some(MneType::Dest), mne_buf}),
+		}
+	}
+
+	#[allow(dead_code)]
+	fn as_str(&self) -> &'static str {
+		match self {
+			DestMne::DestM   => "M",
+			DestMne::DestD   => "D",
+			DestMne::DestDM  => "DM",
+			DestMne::DestA   => "A",
+			DestMne::DestAM  => "AM",
+			DestMne::DestAD  => "AD",
+			DestMne::DestADM => "ADM",
 		}
 	}
 }
@@ -133,6 +147,40 @@ impl CompMne {
 			_      => Err(ParseError::UnknownMne{mne_type: Some(MneType::Comp), mne_buf}),
 		}
 	}
+
+	#[allow(dead_code)]
+	fn as_str(&self) -> &'static str {
+		match self {
+			CompMne::Comp0       => "0",
+			CompMne::Comp1       => "1",
+			CompMne::CompMinus1  => "-1",
+			CompMne::CompD       => "D",
+			CompMne::CompA       => "A",
+			CompMne::CompM       => "M",
+			CompMne::CompNotD    => "!D",
+			CompMne::CompNotA    => "!A",
+			CompMne::CompNotM    => "!M",
+			CompMne::CompMinusD  => "-D",
+			CompMne::CompMinusA  => "-A",
+			CompMne::CompMinusM  => "-M",
+			CompMne::CompDPlus1  => "D+1",
+			CompMne::CompAPlus1  => "A+1",
+			CompMne::CompMPlus1  => "M+1",
+			CompMne::CompDMinus1 => "D-1",
+			CompMne::CompAMinus1 => "A-1",
+			CompMne::CompMMinus1 => "M-1",
+			CompMne::CompDPlusA  => "D+A",
+			CompMne::CompDPlusM  => "D+M",
+			CompMne::CompDMinusA => "D-A",
+			CompMne::CompDMinusM => "D-M",
+			CompMne::CompAMinusD => "A-D",
+			CompMne::CompMMinusD => "M-D",
+			CompMne::CompDAndA   => "D&A",
+			CompMne::CompDAndM   => "D&M",
+			CompMne::CompDOrA    => "D|A",
+			CompMne::CompDOrM    => "D|M",
+		}
+	}
 }
 
 impl JumpMne {
@@ -149,6 +197,19 @@ impl JumpMne {
 			"JLE " => Ok(JumpMne::JumpJle),
 			"JMP " => Ok(JumpMne::JumpJmp),
 			_      => Err(ParseError::UnknownMne{mne_type: Some(MneType::Jump), mne_buf}),
+		}
+	}
+
+	#[allow(dead_code)]
+	fn as_str(&self) -> &'static str {
+		match self {
+			JumpMne::JumpJgt => "JGT",
+			JumpMne::JumpJeq => "JEQ",
+			JumpMne::JumpJge => "JGE",
+			JumpMne::JumpJlt => "JLT",
+			JumpMne::JumpJne => "JNE",
+			JumpMne::JumpJle => "JLE",
+			JumpMne::JumpJmp => "JMP",
 		}
 	}
 }
@@ -208,6 +269,14 @@ pub type ParseResult = Result<Option<Ins>, ParseError>;
 /// *Label* symbols are mapped immediately to the current value of `ins_ptr` (instruction pointer);
 /// the current ROM address. *Variables* are all mapped to [`DEFAULT_RAM_ADDRESS`]; `parse_ins`
 /// does not distribute RAM address to variables, this is a job left for the caller.
+///
+/// # Conflicting use of the A-register
+///
+/// An A-instruction ```@n``` sets the A-register, and in so doing, selects both *RAM\[n\]* and 
+/// *ROM\[n\]*. Subsequent C-instructions which reference M then read/write from/to *RAM\[n\]*, 
+/// and C-instruction which use a jump, jump to *ROM\[n\]*. C-instructions which do both, such
+/// as ```@D=M;JMP``` have conflicting use of the A-register. Such instructions are discouraged
+/// but not invalid; `parse_ins` does not restrict their use.
 ///
 /// # Example
 ///
@@ -283,7 +352,10 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 				match c {
 					'@' => dfa = DFA::AOpen,
 					'(' => dfa = DFA::LFirst,
-					_ => dfa = DFA::CFirst,
+					_ => {
+						push_mne_char(c, &mut mb0, &mut mi0, None)?;
+						dfa = DFA::CFirst;
+					}
 				}
 			},
 			DFA::AOpen => {
@@ -426,15 +498,15 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 			Ok(Some(Ins::C1{dest, comp}))
 		},
 		DFA::CJump1 => {
+			let comp = CompMne::from_mne_buf(mb0)?;
+			let jump = JumpMne::from_mne_buf(mb1)?;
+			Ok(Some(Ins::C3{comp, jump}))
+		},
+		DFA::CJump2 => {
 			let dest = DestMne::from_mne_buf(mb0)?;
 			let comp = CompMne::from_mne_buf(mb1)?;
 			let jump = JumpMne::from_mne_buf(mb2)?;
 			Ok(Some(Ins::C2{dest, comp, jump}))
-		},
-		DFA::CJump2 => {
-			let comp = CompMne::from_mne_buf(mb0)?;
-			let jump = JumpMne::from_mne_buf(mb1)?;
-			Ok(Some(Ins::C3{comp, jump}))
 		},
 	}
 }
@@ -614,11 +686,69 @@ mod tests {
 		assert_eq!(sym_val_table.len(), var_num + 1);
 		assert_eq!(sym_val_table[var_num], (foo_ins_ptr, SymUse::LROM));
 	}
+
+	use enum_iterator::all;
+
+	#[test]
+	fn test_c1ins_parsing(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// All permutations of dest=comp should be correctly parsed (and are valid).
+		for dest in all::<DestMne>().collect::<Vec<_>>() {
+			for comp in all::<CompMne>().collect::<Vec<_>>() {
+				let ins = format!("{}={}", dest.as_str(), comp.as_str());
+				assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::C1{dest, comp})));
+			}
+		}
+
+		// C-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_c2ins_parsing(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// All permutations of dest=comp;jump should be correctly parsed (and are valid).
+		for dest in all::<DestMne>().collect::<Vec<_>>() {
+			for comp in all::<CompMne>().collect::<Vec<_>>() {
+				for jump in all::<JumpMne>().collect::<Vec<_>>() {
+					let ins = format!("{}={};{}", dest.as_str(), comp.as_str(), jump.as_str());
+					assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::C2{dest, comp, jump})));
+				}
+			}
+		}
+
+		// C-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
+
+	#[test]
+	fn test_c3ins_parsing(){
+		let mut sym_key_table = HashMap::new();
+		let mut sym_val_table = vec![];
+
+		// All permutations of comp;jump should be correctly parsed (and are valid).
+		for comp in all::<CompMne>().collect::<Vec<_>>() {
+			for jump in all::<JumpMne>().collect::<Vec<_>>() {
+				let ins = format!("{};{}", comp.as_str(), jump.as_str());
+				assert_eq!(parse_ins(&ins, 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::C3{comp, jump})));
+			}
+		}
+
+		// C-instructions should populate no symbols.
+		assert!(sym_key_table.is_empty());
+		assert!(sym_val_table.is_empty());
+	}
 }
 
 
 fn main() {
 	let mut sym_key_table = HashMap::new();
 	let mut sym_val_table = vec![];
-	assert_eq!(parse_ins("@1234", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 1234})));
+	assert_eq!(parse_ins("@1234", 0u16, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{cint: 1234})));
 }
