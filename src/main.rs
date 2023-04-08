@@ -181,7 +181,42 @@ pub enum ParseError {
 
 pub type ParseResult = Result<Option<Ins>, ParseError>;
 
-fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize>,
+/// Parse a line of Hack assembly into its equivalent data representation. Populates the
+/// symbol table as new symbols are encountered. `ins_ptr` (instruction pointer) is expected to 
+/// be the current ROM address of the instruction being parsed.
+///
+/// # Symbols
+///
+/// Symbols can be either *labels* or *variables*. The former are symbollic place-holders
+/// for ROM addresses, the latter for RAM addresses.
+///
+/// Any new symbols encountered in an A-instruction, for example ```@foo```, are added to
+/// the symbol table and marked as a *variable*. Any new symbols encountered in an L-instruction, 
+/// for example ```(boo)``` are added to the symbol table and marked as a *label*.
+///
+/// For any symbol encountered in an L-instruction which is already in the symbol table, and
+/// marked as a *variable*, the mark is overriden to a *label*. *Labels* take priority because
+/// *label* symbols can appear in both A and L instructions. Their presence in an L-instruction
+/// identifies the symbol as a *label*, however their use in an A-instruction can appear before
+/// their use in an L-instruction; below, ```foo``` is a *label* not a *variable*.
+///
+/// @foo
+/// 0;JMP
+/// (foo)
+///
+/// *Label* symbols are mapped immediately to the current value of `ins_ptr` (instruction pointer);
+/// the current ROM address. *Variables* are all mapped to [`DEFAULT_RAM_ADDRESS`]; `parse_ins`
+/// does not distribute RAM address to variables, this is a job left for the caller.
+///
+/// # Example
+///
+/// ```
+/// let mut sym_key_table = HashMap::new();
+/// let mut sym_val_table = vec![];
+/// assert_eq!(parse_ins("@123", 0, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A1{c_int: 123})));
+/// assert_eq!(parse_ins("#comment\n", 0, &mut sym_key_table, &mut sym_val_table), Ok(None));
+/// ```
+pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, usize>,
 	sym_val_table: &mut Vec<(u16, SymUse)>) -> ParseResult {
 
 	enum DFA {
