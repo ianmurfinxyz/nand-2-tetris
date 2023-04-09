@@ -187,4 +187,25 @@ mod tests {
 		assert_eq!(assemble(&mut asm_in, &mut bin_out).unwrap(), (line_count, ins_count));
 		assert_eq!(bin_out.get_ref().get_ref(), expected_bin_code.join("\n").as_bytes());
 	}
+
+	#[test]
+	fn test_assemble_pong(){
+		use std::fs::File;
+
+		let asm_pong = File::open("test/PongL.asm").unwrap();
+		let mut asm_in = BufReader::new(asm_pong);
+
+		let bin_pong = File::open("test/PongL.hack").unwrap();
+		let expected_bin_code = BufReader::new(bin_pong);
+
+		let mut actual_bin_code = BufWriter::new(Cursor::new(Vec::new()));
+		assemble(&mut asm_in, &mut actual_bin_code).unwrap();
+
+		let expected_iter = expected_bin_code.lines();
+		let actual_iter = actual_bin_code.get_ref().get_ref().lines();
+
+		for (ins_num, (expected, actual)) in expected_iter.zip(actual_iter).enumerate() {
+			assert_eq!((ins_num, expected.unwrap()), (ins_num, actual.unwrap()));
+		}
+	}
 }
