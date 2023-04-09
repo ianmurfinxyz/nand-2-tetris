@@ -371,7 +371,7 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 		if c.is_whitespace() {
 			continue;
 		}
-		if c == '#' {
+		if c == '#' || c == '/' {
 			break;
 		}
 		match dfa {
