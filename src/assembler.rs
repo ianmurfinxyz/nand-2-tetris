@@ -113,7 +113,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn test_prog_1(){
+	fn test_assemble_prog_1(){
 		let input_asm_code = [
 			"@0   # Variable x",
 			"D=A",
@@ -185,5 +185,6 @@ mod tests {
 		let mut asm_in = BufReader::new(Cursor::new(input_asm_code.join("\n")));
 		let mut bin_out = BufWriter::new(Cursor::new(Vec::new()));
 		assert_eq!(assemble(&mut asm_in, &mut bin_out).unwrap(), (line_count, ins_count));
+		assert_eq!(bin_out.get_ref().get_ref(), expected_bin_code.join("\n").as_bytes());
 	}
 }
