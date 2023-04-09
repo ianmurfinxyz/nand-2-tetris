@@ -7,7 +7,7 @@ pub const MAX_MNE_LEN: usize = 3;
 pub const MNE_BUF_LEN: usize = MAX_MNE_LEN + 1;
 pub const MAX_INT_VAL: u16 = 32767;
 
-pub const DEFAULT_RAM_ADDRESS: u16 = 0;
+pub const DEFAULT_RAM_ADDRESS: u16 = u16::MAX;
 
 type SymBuf = [u8; MAX_SYM_LEN];
 pub type MneBuf = [u8; MNE_BUF_LEN];
@@ -53,19 +53,28 @@ pub enum CompMne {
 	CompDPlus1,
 	CompAPlus1,
 	CompMPlus1,
+	Comp1PlusD,
+	Comp1PlusA,
+	Comp1PlusM,
 	CompDMinus1,
 	CompAMinus1,
 	CompMMinus1,
 	CompDPlusA,
 	CompDPlusM,
+	CompAPlusD,
+	CompMPlusD,
 	CompDMinusA,
 	CompDMinusM,
 	CompAMinusD,
 	CompMMinusD,
 	CompDAndA,
 	CompDAndM,
+	CompAAndD,
+	CompMAndD,
 	CompDOrA,
 	CompDOrM,
+	CompAOrD,
+	CompMOrD,
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone, Copy)]
@@ -131,19 +140,28 @@ impl CompMne {
 			"D+1 " => Ok(CompMne::CompDPlus1),
 			"A+1 " => Ok(CompMne::CompAPlus1),
 			"M+1 " => Ok(CompMne::CompMPlus1),
+			"1+D " => Ok(CompMne::Comp1PlusD),
+			"1+A " => Ok(CompMne::Comp1PlusA),
+			"1+M " => Ok(CompMne::Comp1PlusM),
 			"D-1 " => Ok(CompMne::CompDMinus1),
 			"A-1 " => Ok(CompMne::CompAMinus1),
 			"M-1 " => Ok(CompMne::CompMMinus1),
 			"D+A " => Ok(CompMne::CompDPlusA),
 			"D+M " => Ok(CompMne::CompDPlusM),
+			"A+D " => Ok(CompMne::CompAPlusD),
+			"M+D " => Ok(CompMne::CompMPlusD),
 			"D-A " => Ok(CompMne::CompDMinusA),
 			"D-M " => Ok(CompMne::CompDMinusM),
 			"A-D " => Ok(CompMne::CompAMinusD),
 			"M-D " => Ok(CompMne::CompMMinusD),
 			"D&A " => Ok(CompMne::CompDAndA),
 			"D&M " => Ok(CompMne::CompDAndM),
+			"A&D " => Ok(CompMne::CompAAndD),
+			"M&D " => Ok(CompMne::CompMAndD),
 			"D|A " => Ok(CompMne::CompDOrA),
 			"D|M " => Ok(CompMne::CompDOrM),
+			"A|D " => Ok(CompMne::CompAOrD),
+			"M|D " => Ok(CompMne::CompMOrD),
 			_      => Err(ParseError::UnknownMne{mne_type: Some(MneType::Comp), mne_buf}),
 		}
 	}
@@ -166,19 +184,28 @@ impl CompMne {
 			CompMne::CompDPlus1  => "D+1",
 			CompMne::CompAPlus1  => "A+1",
 			CompMne::CompMPlus1  => "M+1",
+			CompMne::Comp1PlusD  => "1+D",
+			CompMne::Comp1PlusA  => "1+A",
+			CompMne::Comp1PlusM  => "1+M",
 			CompMne::CompDMinus1 => "D-1",
 			CompMne::CompAMinus1 => "A-1",
 			CompMne::CompMMinus1 => "M-1",
 			CompMne::CompDPlusA  => "D+A",
 			CompMne::CompDPlusM  => "D+M",
+			CompMne::CompAPlusD  => "A+D",
+			CompMne::CompMPlusD  => "M+D",
 			CompMne::CompDMinusA => "D-A",
 			CompMne::CompDMinusM => "D-M",
 			CompMne::CompAMinusD => "A-D",
 			CompMne::CompMMinusD => "M-D",
 			CompMne::CompDAndA   => "D&A",
 			CompMne::CompDAndM   => "D&M",
+			CompMne::CompAAndD   => "A&D",
+			CompMne::CompMAndD   => "M&D",
 			CompMne::CompDOrA    => "D|A",
 			CompMne::CompDOrM    => "D|M",
+			CompMne::CompAOrD    => "A|D",
+			CompMne::CompMOrD    => "M|D",
 		}
 	}
 }
@@ -471,7 +498,7 @@ pub fn parse_ins(line: &str, ins_ptr: u16, sym_key_table: &mut HashMap<String, u
 		},
 		DFA::LClose => {
 			let sym = unsafe { std::str::from_utf8_unchecked(&sb0[..si0]) };
-			let sym_val = (ins_ptr + 1, SymUse::LROM);
+			let sym_val = (ins_ptr, SymUse::LROM);
 			let sym_id = match sym_key_table.entry(String::from(sym.borrow())) {
 				Entry::Occupied(entry) => {
 					let sym_id = *entry.get();
@@ -633,6 +660,7 @@ mod tests {
 			let sym = format!("label{}", sym_id);
 			let ins = format!("({})", sym);
 
+			// These are all label declarations, none of which count as instructions.
 			let ins_ptr = 0u16;
 
 			// Each new symbol encountered should declare a new label.
@@ -643,7 +671,7 @@ mod tests {
 
 			// New labels should be assigned the next ROM address and be correctly
 			// identified as being used to store ROM addresses.
-			assert_eq!(sym_val_table[sym_id], (ins_ptr + 1, SymUse::LROM));
+			assert_eq!(sym_val_table[sym_id], (ins_ptr, SymUse::LROM));
 
 			// Duplication errors should be robust in the face of multiple detections.
 			for _repeat in 0..3 {
@@ -704,17 +732,15 @@ mod tests {
 		assert_eq!(parse_ins("(foo)", ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::L1{sym_id: var_num})));
 		assert_eq!(sym_key_table.get("foo"), Some(&var_num));
 		assert_eq!(sym_val_table.len(), var_num + 1);
+		assert_eq!(sym_val_table[var_num], (ins_ptr, SymUse::LROM));
 
-		let foo_ins_ptr = ins_ptr + 1;
-		assert_eq!(sym_val_table[var_num], (foo_ins_ptr, SymUse::LROM));
-
-		ins_ptr += 1;
+		// ins_ptr += 1; // labels do not count as an instruction
 
 		// Symbol foo is old, and a label, and should continue to be identified as such.
 		assert_eq!(parse_ins("@foo", ins_ptr, &mut sym_key_table, &mut sym_val_table), Ok(Some(Ins::A2{sym_id: var_num})));
 		assert_eq!(sym_key_table.get("foo"), Some(&var_num));
 		assert_eq!(sym_val_table.len(), var_num + 1);
-		assert_eq!(sym_val_table[var_num], (foo_ins_ptr, SymUse::LROM));
+		assert_eq!(sym_val_table[var_num], (ins_ptr, SymUse::LROM));
 	}
 
 	use enum_iterator::all;
