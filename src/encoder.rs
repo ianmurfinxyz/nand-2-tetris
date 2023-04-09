@@ -74,7 +74,7 @@ impl JumpMne {
 
 const A_INS_FMT: u16 = 0b0_111111111111111;
 
-fn encode_ins(ins: &Ins, sym_val_table: &Vec<(u16, SymUse)>) -> Option<u16> {
+pub fn encode_ins(ins: &Ins, sym_val_table: &Vec<(u16, SymUse)>) -> Option<u16> {
 	match ins {
 		Ins::A1{cint} => {
 			Some(A_INS_FMT & cint)
