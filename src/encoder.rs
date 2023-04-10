@@ -14,11 +14,19 @@ impl DestMne {
 		match self {
 			DestMne::DestM   => 0b111_0_000000_001_000,
 			DestMne::DestD   => 0b111_0_000000_010_000,
-			DestMne::DestDM  => 0b111_0_000000_011_000,
 			DestMne::DestA   => 0b111_0_000000_100_000,
+			DestMne::DestDM  => 0b111_0_000000_011_000,
+			DestMne::DestMD  => 0b111_0_000000_011_000,
 			DestMne::DestAM  => 0b111_0_000000_101_000,
+			DestMne::DestMA  => 0b111_0_000000_101_000,
 			DestMne::DestAD  => 0b111_0_000000_110_000,
+			DestMne::DestDA  => 0b111_0_000000_110_000,
 			DestMne::DestADM => 0b111_0_000000_111_000,
+			DestMne::DestAMD => 0b111_0_000000_111_000,
+			DestMne::DestDAM => 0b111_0_000000_111_000,
+			DestMne::DestDMA => 0b111_0_000000_111_000,
+			DestMne::DestMAD => 0b111_0_000000_111_000,
+			DestMne::DestMDA => 0b111_0_000000_111_000,
 		}
 	}
 }

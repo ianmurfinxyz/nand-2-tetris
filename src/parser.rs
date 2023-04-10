@@ -29,11 +29,19 @@ pub enum MneType {
 pub enum DestMne {
 	DestM,
 	DestD,
-	DestDM,
 	DestA,
+	DestDM,
+	DestMD,
 	DestAM,
+	DestMA,
 	DestAD,
+	DestDA,
 	DestADM,
+	DestAMD,
+	DestDMA,
+	DestDAM,
+	DestMAD,
+	DestMDA,
 }
 
 #[derive(Debug, PartialEq, Sequence, Clone, Copy)]
@@ -106,11 +114,19 @@ impl DestMne {
 		match mne_str {
 			"M   " => Ok(DestMne::DestM),
 			"D   " => Ok(DestMne::DestD),
-			"DM  " => Ok(DestMne::DestDM),
 			"A   " => Ok(DestMne::DestA),
+			"DM  " => Ok(DestMne::DestDM),
+			"MD  " => Ok(DestMne::DestMD),
 			"AM  " => Ok(DestMne::DestAM),
+			"MA  " => Ok(DestMne::DestMA),
 			"AD  " => Ok(DestMne::DestAD),
+			"DA  " => Ok(DestMne::DestDA),
 			"ADM " => Ok(DestMne::DestADM),
+			"AMD " => Ok(DestMne::DestAMD),
+			"DMA " => Ok(DestMne::DestDMA),
+			"DAM " => Ok(DestMne::DestDAM),
+			"MAD " => Ok(DestMne::DestMAD),
+			"MDA " => Ok(DestMne::DestMDA),
 			_      => Err(ParseError::UnknownMne{mne_type: Some(MneType::Dest), mne_buf}),
 		}
 	}
@@ -120,11 +136,19 @@ impl DestMne {
 		match self {
 			DestMne::DestM   => "M",
 			DestMne::DestD   => "D",
-			DestMne::DestDM  => "DM",
 			DestMne::DestA   => "A",
+			DestMne::DestDM  => "DM",
+			DestMne::DestMD  => "MD",
 			DestMne::DestAM  => "AM",
+			DestMne::DestMA  => "MA",
 			DestMne::DestAD  => "AD",
+			DestMne::DestDA  => "DA",
 			DestMne::DestADM => "ADM",
+			DestMne::DestAMD => "AMD",
+			DestMne::DestDMA => "DMA",
+			DestMne::DestDAM => "DAM",
+			DestMne::DestMAD => "MAD",
+			DestMne::DestMDA => "MDA",
 		}
 	}
 }
