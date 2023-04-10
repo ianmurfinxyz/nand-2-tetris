@@ -88,8 +88,18 @@ pub enum JumpMne {
 	JumpJmp,
 }
 
+impl MneType {
+	pub fn as_str(&self) -> &'static str {
+		match self {
+			MneType::Dest => "Dest",
+			MneType::Comp => "Comp",
+			MneType::Jump => "Jump",
+		}
+	}
+}
+
 impl DestMne {
-	fn from_mne_buf(mne_buf: MneBuf) -> Result<DestMne, ParseError> {
+	pub fn from_mne_buf(mne_buf: MneBuf) -> Result<DestMne, ParseError> {
 		let mne_str = unsafe {
 			std::str::from_utf8_unchecked(mne_buf.as_ref())
 		};
@@ -106,7 +116,7 @@ impl DestMne {
 	}
 
 	#[allow(dead_code)]
-	fn as_str(&self) -> &'static str {
+	pub fn as_str(&self) -> &'static str {
 		match self {
 			DestMne::DestM   => "M",
 			DestMne::DestD   => "D",
@@ -120,7 +130,7 @@ impl DestMne {
 }
 
 impl CompMne {
-	fn from_mne_buf(mne_buf: MneBuf) -> Result<CompMne, ParseError> {
+	pub fn from_mne_buf(mne_buf: MneBuf) -> Result<CompMne, ParseError> {
 		let mne_str = unsafe {
 			std::str::from_utf8_unchecked(mne_buf.as_ref())
 		};
@@ -167,7 +177,7 @@ impl CompMne {
 	}
 
 	#[allow(dead_code)]
-	fn as_str(&self) -> &'static str {
+	pub fn as_str(&self) -> &'static str {
 		match self {
 			CompMne::Comp0       => "0",
 			CompMne::Comp1       => "1",
@@ -211,7 +221,7 @@ impl CompMne {
 }
 
 impl JumpMne {
-	fn from_mne_buf(mne_buf: MneBuf) -> Result<JumpMne, ParseError> {
+	pub fn from_mne_buf(mne_buf: MneBuf) -> Result<JumpMne, ParseError> {
 		let mne_str = unsafe {
 			std::str::from_utf8_unchecked(mne_buf.as_ref())
 		};
@@ -228,7 +238,7 @@ impl JumpMne {
 	}
 
 	#[allow(dead_code)]
-	fn as_str(&self) -> &'static str {
+	pub fn as_str(&self) -> &'static str {
 		match self {
 			JumpMne::JumpJgt => "JGT",
 			JumpMne::JumpJeq => "JEQ",

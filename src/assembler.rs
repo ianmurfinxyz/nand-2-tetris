@@ -3,13 +3,73 @@ use std::collections::hash_map::HashMap;
 use crate::parser::*;
 use crate::encoder::*;
 
-fn write_parse_error(e: &ParseError) {
+fn write_error(line: &str, line_num: u32, ins_ptr: u16, msg: &str){
+	println!("error: {}\n[ip:{},ln:{}] | {}\n", msg, ins_ptr, line_num, line);
+}
+
+fn write_pos_error(found: char, pos: usize, line: &str, line_num: u32, ins_ptr: u16, msg: &str){
+	let dat = format!("[ip:{},ln:{}] | ", ins_ptr, line_num);
+	let pnt = format!("{}{}^", " ".repeat(dat.len()), "~".repeat(pos - 1));
+	println!("Unexpected character '{}' at pos '{}'. {}\n{}{}\n{}", found, pos, msg, dat, line, pnt);
+}
+
+fn write_parse_error(e: &ParseError, line: &str, line_num: u32, ins_ptr: u16) {
+	match e {
+		ParseError::UnknownMne{mne_type, mne_buf} => {
+			let mne_type_str = match mne_type {
+				Some(mt) => format!("{} ", mt.as_str()),
+				None => "".to_string(),
+			};
+			let mne_str = std::str::from_utf8(mne_buf.as_ref()).unwrap().trim();
+			let msg = format!("Unknown {}mnemonic '{}'", mne_type_str, mne_str);
+			write_error(line, line_num, ins_ptr, &msg);
+		},
+		ParseError::ExpectedFirstSymChar{found, pos} => {
+			write_pos_error(*found, *pos, line, line_num, ins_ptr, "Expected valid first symbol character.");
+		},
+		ParseError::ExpectedSymChar{found, pos} => {
+			write_pos_error(*found, *pos, line, line_num, ins_ptr, "Expected valid symbol character.");
+		},
+		ParseError::ExpectedDigit{found, pos} => {
+			write_pos_error(*found, *pos, line, line_num, ins_ptr, "Expected digit.");
+		},
+		ParseError::UnexpectedChar{found, pos} => {
+			write_pos_error(*found, *pos, line, line_num, ins_ptr, "");
+		},
+		ParseError::DuplicateLabel => {
+			write_error(line, line_num, ins_ptr, "Duplicate label definition!");
+		},
+		ParseError::AInsMissingArg => {
+			write_error(line, line_num, ins_ptr, "Expected argument after opening '@' character for A-instruction.");
+		},
+		ParseError::LInsMissingSym => {
+			write_error(line, line_num, ins_ptr, "Expected symbol after opening '(' character for L-instruction.");
+		},
+		ParseError::LInsMissingClose => {
+			write_error(line, line_num, ins_ptr, "Expected closing ')' character for label.");
+		},
+		ParseError::SymOverflow => {
+			let msg = format!("Symbol too large! Max symbol length is {} characters.", MAX_SYM_LEN);
+			write_error(line, line_num, ins_ptr, &msg);
+		},
+		ParseError::IntOverflow => {
+			write_error(line, line_num, ins_ptr, "Integer too large! Overflows u16 memory register.");
+		},
+		ParseError::NotASCII => {
+			write_error(line, line_num, ins_ptr, "Found unicode character! Unicode not supported; ASCII only.");
+		},
+		ParseError::CInsNop => {
+			write_error(line, line_num, ins_ptr, "Invalid c-instruction; has no effect! Requires a Dest or Jump term.");
+		},
+	}
 }
 
 fn write_ram_exhausted_error() {
+	println!("RAM exhausted! Assembly terminated!");
 }
 
-fn write_rom_exhausted_error() {
+fn write_rom_exhausted_error(line: &str, line_num: u32, ins_ptr: u16) {
+	write_error(line, line_num, ins_ptr, "ROM exhausted! Assembly terminated!");
 }
 
 pub fn assemble<R: ?Sized, W: ?Sized>(asm_in: &mut R, bin_out: &mut W) -> io::Result<(u32, u16)>
@@ -52,9 +112,10 @@ pub fn assemble<R: ?Sized, W: ?Sized>(asm_in: &mut R, bin_out: &mut W) -> io::Re
 	// Parse all instructions into memory...
 
 	let mut inss = vec![];
-	for line in asm_in.lines() {
+	for line_result in asm_in.lines() {
 		line_count += 1;
-		match parse_ins(&line?, ins_ptr, &mut sym_key_table, &mut sym_val_table){
+		let line = line_result?;
+		match parse_ins(&line, ins_ptr, &mut sym_key_table, &mut sym_val_table){
 			Ok(Some(ins @ Ins::L1{..})) => {
 				inss.push(ins);
 			},
@@ -66,7 +127,7 @@ pub fn assemble<R: ?Sized, W: ?Sized>(asm_in: &mut R, bin_out: &mut W) -> io::Re
 				continue; // skip comment and whitespace lines
 			},
 			Err(e) => {
-				write_parse_error(&e);
+				write_parse_error(&e, &line, line_count, ins_ptr);
 				error_count += 1;
 				ins_ptr += 1;
 				if error_count >= MAX_PARSE_ERRORS {
@@ -75,7 +136,7 @@ pub fn assemble<R: ?Sized, W: ?Sized>(asm_in: &mut R, bin_out: &mut W) -> io::Re
 			},
 		}
 		if ins_ptr >= MAX_ROM_ADDRESS {
-			write_rom_exhausted_error();
+			write_rom_exhausted_error(&line, line_count, ins_ptr);
 			bin_out.flush()?;
 			return Ok((line_count, ins_ptr));
 		}
