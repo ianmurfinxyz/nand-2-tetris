@@ -1,7 +1,10 @@
 [package]
-name = "nand2tetris"
+name = "n2tasm"
+authors = ["Ian Murfin - github.com/ianmurfinxyz"]
+description = "Nand2Tetris Hack lang assembler"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 enum-iterator = "1.4.0"
+clap = { version = "4.0", features = ["derive"]}
