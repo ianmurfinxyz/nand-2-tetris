@@ -1,0 +1,10 @@
+[package]
+name = "vm-translator"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "n2tvmt"
+path = "src/main.rs"
+
+[dependencies]
