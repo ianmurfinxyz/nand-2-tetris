@@ -171,92 +171,30 @@ pub fn assemble<R: ?Sized, W: ?Sized>(asm_in: &mut R, bin_out: &mut W) -> io::Re
 #[cfg(test)]
 mod tests {
 	use std::io::{BufReader, Cursor, BufWriter};
+	use std::collections::HashSet;
+	use std::fs;
 	use super::*;
 
-	#[test]
-	fn test_assemble_prog_1(){
-		let input_asm_code = [
-			"@0   # Variable x",
-			"D=A",
-			"@SP",
-			"M=D",
-			"@1   # Variable y",
-			"D=A",
-			"@SP",
-			"AM=M+1",
-			"M=D",
-			"",
-			"# Add variables",
-			"@SP",
-			"D=M-1",
-			"A=D",
-			"D=M",
-			"A=A-1",
-			"M=M+D",
-			"D=A-1",
-			"@SP",
-			"M=D",
-			"",
-			"# Output result",
-			"@SP",
-			"A=M-1",
-			"D=M",
-			"@SP",
-			"M=M-1",
-			"@R0",
-			"M=D",
-			"(END)",
-			"@END",
-			"0;JMP",
-		];
-
-		let expected_bin_code = [
-			"0000000000000000",
-			"1110110000010000",
-			"0000000000000000",
-			"1110001100001000",
-			"0000000000000001",
-			"1110110000010000",
-			"0000000000000000",
-			"1111110111101000",
-			"1110001100001000",
-			"0000000000000000",
-			"1111110010010000",
-			"1110001100100000",
-			"1111110000010000",
-			"1110110010100000",
-			"1111000010001000",
-			"1110110010010000",
-			"0000000000000000",
-			"1110001100001000",
-			"0000000000000000",
-			"1111110010100000",
-			"1111110000010000",
-			"0000000000000000",
-			"1111110010001000",
-			"0000000000000000",
-			"1110001100001000",
-			"0000000000011001",
-			"1110101010000111",
-			"", // ensures we get a terminating \n when calling join()
-		];
-
-		let line_count = input_asm_code.len() as u32;
-		let ins_count = (expected_bin_code.len() as u16) - 1;
-		let mut asm_in = BufReader::new(Cursor::new(input_asm_code.join("\n")));
-		let mut bin_out = BufWriter::new(Cursor::new(Vec::new()));
-		assert_eq!(assemble(&mut asm_in, &mut bin_out).unwrap(), (line_count, ins_count));
-		assert_eq!(bin_out.get_ref().get_ref(), expected_bin_code.join("\n").as_bytes());
+	fn get_programs_to_test() -> std::io::Result<HashSet<String>> {
+		let mut programs = HashSet::new();
+		for entry in fs::read_dir("test")? {
+			let path = entry?.path();
+			if fs::metadata(&path)?.is_file() {
+				if let Some(filename) = path.file_stem() {
+					programs.insert(filename.to_string_lossy().to_string());
+				}
+			}
+		}
+		Ok(programs)
 	}
 
-	#[test]
-	fn test_assemble_pong(){
+	fn test_assemble_program(asm_file: &str, bin_file: &str){
 		use std::fs::File;
 
-		let asm_pong = File::open("test/PongL.asm").unwrap();
+		let asm_pong = File::open(asm_file).unwrap();
 		let mut asm_in = BufReader::new(asm_pong);
 
-		let bin_pong = File::open("test/PongL.hack").unwrap();
+		let bin_pong = File::open(bin_file).unwrap();
 		let expected_bin_code = BufReader::new(bin_pong);
 
 		let mut actual_bin_code = BufWriter::new(Cursor::new(Vec::new()));
@@ -267,6 +205,16 @@ mod tests {
 
 		for (ins_num, (expected, actual)) in expected_iter.zip(actual_iter).enumerate() {
 			assert_eq!((ins_num, expected.unwrap()), (ins_num, actual.unwrap()));
+		}
+	}
+
+	#[test]
+	fn test_assemble_progams(){
+		for program in get_programs_to_test().unwrap() {
+			let asm_file = format!("test/{}.asm", program);
+			let bin_file = format!("test/{}.hack", program);
+			println!("Test assembling program: {} -> {}", &asm_file, &bin_file);
+			test_assemble_program(&asm_file, &bin_file);
 		}
 	}
 }
