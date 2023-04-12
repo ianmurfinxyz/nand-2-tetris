@@ -8,3 +8,4 @@ name = "n2tvmt"
 path = "src/main.rs"
 
 [dependencies]
+compact_str = "0.7.0"
