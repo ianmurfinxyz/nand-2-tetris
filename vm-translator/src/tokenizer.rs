@@ -66,10 +66,6 @@ impl From<ParseError> for TokenError {
 	}
 }
 
-
-// buffered string iteration technique
-// https://stackoverflow.com/questions/35385703/read-file-character-by-character-in-rust
-
 const MAX_READ_SIZE_BYTES: usize = 4096;
 
 pub struct Tokenizer<R: BufRead> {
@@ -82,7 +78,7 @@ pub struct Tokenizer<R: BufRead> {
 
 impl<R: BufRead> Tokenizer<R> {
 	fn new(reader: R) -> Self {
-		Tokenizer{reader, buf: Vec::with_capacity(MAX_READ_SIZE_BYTES), str: String::new(), pos: 0, end: 0}
+		Tokenizer{reader, buf: vec![0; MAX_READ_SIZE_BYTES], str: String::new(), pos: 0, end: 0}
 	}
 
 	fn find_next_token_range(&mut self) -> Option<Range<usize>> {
@@ -117,7 +113,7 @@ impl<R: BufRead> Tokenizer<R> {
 						}
 						continue;
 					}
-					break Some(i0)
+					break Some(self.pos + i0)
 				}
 				else {
 					break None
@@ -131,11 +127,12 @@ impl<R: BufRead> Tokenizer<R> {
 
 		// Search for the first whitespace character or the start of a comment.
 		let end = {
-			let mut it = self.str[start.unwrap()..].char_indices().peekable();
+			let start_pos = start.unwrap();
+			let mut it = self.str[start_pos..].char_indices().peekable();
 			loop {
 				if let Some((i0, c0)) = it.next() {
-					if c0.is_whitespace() || (c0 == '/' && it.peek() == Some(&(i0 + 1, '/'))) {
-						break Some(i0);
+					if c0.is_whitespace() || c0 == '\0' || (c0 == '/' && it.peek() == Some(&(i0 + 1, '/'))) {
+						break Some(start_pos + i0);
 					}
 				}
 				else {
@@ -148,10 +145,15 @@ impl<R: BufRead> Tokenizer<R> {
 			return None;
 		}
 
-		Some(start.unwrap()..end.unwrap())
+		debug_assert!(start.unwrap() <= end.unwrap());
+
+		match (start.unwrap(), end.unwrap()) {
+			(s, e) if s != e => Some(s..e),
+			(_, _) => None,
+		}
 	}
 
-	fn read_more_bytes(&mut self) -> Result<(), TokenError> {
+	fn read_more_bytes(&mut self) -> Result<(usize), TokenError> {
 		// The borrow checker will not allow us to uninitialise the buf and str
 		// from a &mut self, so to transfer ownership from the buf to the str
 		// and visa versa we need to ensure the self.buf and self.str remain
@@ -185,15 +187,19 @@ impl<R: BufRead> Tokenizer<R> {
 		self.end = remaining_bytes_count;
 		self.pos = 0;
 
+		let bytes_read;
 		loop {
-			match self.reader.read(&mut buf[self.end..]) {
-				Ok(n) => { self.end += n; break; },
+			let upper = buf.len() - 1;
+			match self.reader.read(&mut buf[self.end..upper]) {
+				Ok(n) => { bytes_read = n; break; },
 				Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
 				Err(e) => return Err(TokenError::from(e)),
 			};
 		}
-
-		// We do self.end += n...safety first!
+		if bytes_read == 0 {
+			return Ok(0);
+		}
+		self.end += bytes_read;
 		debug_assert!(self.end <= MAX_READ_SIZE_BYTES);
 
 		// Will transfer ownership from the buffer to the string.
@@ -204,7 +210,7 @@ impl<R: BufRead> Tokenizer<R> {
 
 		swap(&mut self.str, &mut str);
 
-		Ok(())
+		Ok(bytes_read)
 	}
 }
 
@@ -212,51 +218,59 @@ impl<R: BufRead> Iterator for Tokenizer<R> {
 	type Item = Result<VmToken, TokenError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-
 		let mut range = self.find_next_token_range();
 		if range.is_none() {
 			match self.read_more_bytes() {
-				Ok(()) => range = self.find_next_token_range(),
+				Ok(0) => return None,
+				Ok(_) => range = self.find_next_token_range(),
 				Err(e) => return Some(Err(e)),
 			}
 		}
-
-		if range.is_none() {
-			return None;
+		match range {
+			Some(r) => {
+				self.pos = r.end;
+				let s = String::from(&self.str[r]);
+				//println!("{}", &self.str[r]);
+				println!("{}", s);
+				Some(Ok(VmToken::IntConstant(0)))
+			},
+			None => {
+				return None;
+			},
 		}
-
-		Some(Ok(VmToken::IntConstant(0)))
 	}
 }
 
+#[cfg(test)]
+mod tests {
+	#[test]
+	fn test(){
+		use std::io::{BufReader, Cursor};
+		use super::*;
 
+		let vm_code = "\
+			// This file is part of www.nand2tetris.org
+			// and the book \"The Elements of Computing Systems\"
+			// by Nisan and Schocken, MIT Press.
+			// File name: projects/08/FunctionCalls/SimpleFunction/SimpleFunction.vm
+			
+			// Performs a simple calculation and returns the result.
+			function SimpleFunction.test 2
+			push local 0
+			push local 1 // another comment
+			add
+			not//comment   
+			push argument 0//comment
+			add
+			push argument 1
+			sub
+			return".to_string();
 
-//struct Utf8CharsIter<I: Iterator<Item = io::Result<u8>>> {
-//	byte_stream: I,
-//	bytes: [u8; 4],
-//	len: u8,
-//}
-//
-//impl<I: Iterator<Item = io::Result<u8>>> Utf8CharsIter<I> {
-//	fn new(byte_stream: I) -> Self {
-//		Utf8CharsIter{byte_stream, bytes: [0,0,0,0], len: 0}
-//	}
-//}
-//
-//impl<I: Iterator<Item = io::Result<u8>>> Iterator for Utf8CharsIter<I> {
-//	type Item = io::Result<char>;
-//	fn next(&mut self) -> Option<Self::Item> {
-//		loop {
-//			match std::str::from_utf8(&self.bytes[..self.len]) {
-//				Ok(s) => {
-//					if let Some(c) = s.chars().next(){
-//
-//					}
-//				},
-//				Err(e) => {
-//				}
-//			}
-//		}
-//	}
-//}
+		let reader = BufReader::new(Cursor::new(vm_code.into_bytes()));
+		let tokenizer = Tokenizer::new(reader);
 
+		for _ in tokenizer {
+			assert_eq!(0,0);
+		}
+	}
+}
