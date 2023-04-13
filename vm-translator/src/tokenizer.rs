@@ -201,11 +201,11 @@ impl<R: BufRead> Iterator for Tokenizer<R> {
 
 #[cfg(test)]
 mod tests {
+	use std::io::{BufReader, Cursor};
+	use super::*;
+
 	#[test]
 	fn test_simple_function(){
-		use std::io::{BufReader, Cursor};
-		use super::*;
-
 		let vm_code = "\
 			// This file is part of www.nand2tetris.org
 			// and the book \"The Elements of Computing Systems\"
@@ -222,7 +222,8 @@ mod tests {
 			add
 			push argument 1
 			sub
-			return".to_string();
+			return
+		".to_string();
 
 		let reader = BufReader::new(Cursor::new(vm_code.into_bytes()));
 		let mut tokenizer = Tokenizer::new(reader);
@@ -246,6 +247,268 @@ mod tests {
 		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Sub));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Return));
+		assert_eq!(tokenizer.next().is_none(), true);
+	}
+
+	#[test]
+	fn test_class_2(){
+		let vm_code = "\
+			// This file is part of www.nand2tetris.org
+			// and the book \"The Elements of Computing Systems\"
+			// by Nisan and Schocken, MIT Press.
+			// File name: projects/08/FunctionCalls/StaticsTest/Class2.vm
+			
+			// Stores two supplied arguments in static[0] and static[1].
+			function Class2.set 0
+			push argument 0
+			pop static 0
+			push argument 1
+			pop static 1
+			push constant 0
+			return
+
+			// Returns static[0] - static[1].
+			function Class2.get 0
+			push static 0
+			push static 1
+			sub
+			return
+		".to_string();
+
+		let reader = BufReader::new(Cursor::new(vm_code.into_bytes()));
+		let mut tokenizer = Tokenizer::new(reader);
+
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Function));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class2.set")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Static));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Static));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Return));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Function));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class2.get")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Static));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Static));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Sub));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Return));
+		assert_eq!(tokenizer.next().is_none(), true);
+	}
+
+	#[test]
+	fn test_sys(){
+		let vm_code = "\
+			// This file is part of www.nand2tetris.org
+			// and the book \"The Elements of Computing Systems\"
+			// by Nisan and Schocken, MIT Press.
+			// File name: projects/08/FunctionCalls/StaticsTest/Sys.vm
+			
+			// Tests that different functions, stored in two different 
+			// class files, manipulate the static segment correctly. 
+			function Sys.init 0
+			push constant 6
+			push constant 8
+			call Class1.set 2
+			pop temp 0 // Dumps the return value
+			push constant 23
+			push constant 15
+			call Class2.set 2
+			pop temp 0 // Dumps the return value
+			call Class1.get 0
+			call Class2.get 0
+			label WHILE
+			goto WHILE
+		".to_string();
+
+		let reader = BufReader::new(Cursor::new(vm_code.into_bytes()));
+		let mut tokenizer = Tokenizer::new(reader);
+		
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Function));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Sys.init")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(6));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(8));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Call));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class1.set")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(2));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Temp));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(23));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(15));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Call));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class2.set")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(2));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Temp));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Call));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class1.get")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Call));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("Class2.get")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Label));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("WHILE")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Goto));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("WHILE")));
+		assert_eq!(tokenizer.next().is_none(), true);
+	}
+
+	#[test]
+	fn test_fibonacci_series(){
+		let vm_code = "\
+			// This file is part of www.nand2tetris.org
+			// and the book \"The Elements of Computing Systems\"
+			// by Nisan and Schocken, MIT Press.
+			// File name: projects/08/ProgramFlow/FibonacciSeries/FibonacciSeries.vm
+			
+			// Puts the first argument[0] elements of the Fibonacci series
+			// in the memory, starting in the address given in argument[1].
+			// Argument[0] and argument[1] are initialized by the test script 
+			// before this code starts running.
+			
+			push argument 1
+			pop pointer 1           // that = argument[1]
+			
+			push constant 0
+			pop that 0              // first element in the series = 0
+			push constant 1
+			pop that 1              // second element in the series = 1
+			
+			push argument 0
+			push constant 2
+			sub
+			pop argument 0          // num_of_elements -= 2 (first 2 elements are set)
+			
+			label MAIN_LOOP_START
+			
+			push argument 0
+			if-goto COMPUTE_ELEMENT // if num_of_elements > 0, goto COMPUTE_ELEMENT
+			goto END_PROGRAM        // otherwise, goto END_PROGRAM
+			
+			label COMPUTE_ELEMENT
+			
+			push that 0
+			push that 1
+			add
+			pop that 2              // that[2] = that[0] + that[1]
+			
+			push pointer 1
+			push constant 1
+			add
+			pop pointer 1           // that += 1
+			
+			push argument 0
+			push constant 1
+			sub
+			pop argument 0          // num_of_elements--
+			
+			goto MAIN_LOOP_START
+			
+			label END_PROGRAM
+		".to_string();
+
+		let reader = BufReader::new(Cursor::new(vm_code.into_bytes()));
+		let mut tokenizer = Tokenizer::new(reader);
+
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Pointer));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::That));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::That));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(2));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Sub));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Label));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("MAIN_LOOP_START")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::IfGoto));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("COMPUTE_ELEMENT")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Goto));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("END_PROGRAM")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Label));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("COMPUTE_ELEMENT")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::That));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::That));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Add));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::That));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(2));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Pointer));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Add));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Pointer));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Push));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Constant));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(1));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Sub));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Pop));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Segment(VmSeg::Argument));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::IntConstant(0));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Goto));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("MAIN_LOOP_START")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Command(VmCmd::Label));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), VmToken::Identifier(CompactString::from("END_PROGRAM")));
 		assert_eq!(tokenizer.next().is_none(), true);
 	}
 }
