@@ -10,3 +10,4 @@ path = "src/main.rs"
 [dependencies]
 compact_str = "0.7.0"
 regex = "1"
+lazy_static = "1.4.0"
