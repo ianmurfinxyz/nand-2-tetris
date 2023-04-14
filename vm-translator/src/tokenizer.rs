@@ -3,7 +3,7 @@ use std::str::FromStr;
 use compact_str::CompactString;
 use lazy_static::lazy_static;
 use regex::Regex;
-//use std::fmt;
+use std::fmt;
 
 #[derive(Debug, PartialEq)]
 pub enum VmCmd {
@@ -26,27 +26,30 @@ pub enum VmCmd {
 	Gt,
 }
 
-//impl fmt::Display for VmCmd {
-//	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//		let s = match self {
-//			VmCmd::Function => "function",
-//			VmCmd::Label    => "label",
-//			VmCmd::IfGoto   => "if-goto",
-//			VmCmd::Goto     => "goto",
-//			VmCmd::Call     => "call",
-//			VmCmd::Add      => "add",
-//			VmCmd::Sub      => "sub",
-//			VmCmd::Neg      => "neg",
-//			VmCmd::And      => "adn",
-//			VmCmd::Or       => "or",
-//			VmCmd::Not      => "not",
-//			VmCmd::Eq       => "eq",
-//			VmCmd::Lt       => "lt",
-//			VmCmd::Gt       => "gt",
-//		};
-//		write!(f, "{}", s)
-//	}
-//}
+impl fmt::Display for VmCmd {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let s = match self {
+			VmCmd::Function => "function",
+			VmCmd::Return   => "return",
+			VmCmd::Label    => "label",
+			VmCmd::IfGoto   => "if-goto",
+			VmCmd::Goto     => "goto",
+			VmCmd::Call     => "call",
+			VmCmd::Push     => "push",
+			VmCmd::Pop     => "pop",
+			VmCmd::Add      => "add",
+			VmCmd::Sub      => "sub",
+			VmCmd::Neg      => "neg",
+			VmCmd::And      => "adn",
+			VmCmd::Or       => "or",
+			VmCmd::Not      => "not",
+			VmCmd::Eq       => "eq",
+			VmCmd::Lt       => "lt",
+			VmCmd::Gt       => "gt",
+		};
+		write!(f, "{}", s)
+	}
+}
 
 #[derive(Debug, PartialEq)]
 pub enum VmSeg {
@@ -60,21 +63,21 @@ pub enum VmSeg {
 	Temp,
 }
 
-//impl fmt::Display for VmSeg {
-//	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//		let s = match self {
-//			VmSeg::Argument => "argument",
-//			VmSeg::Local    => "local",
-//			VmSeg::Static   => "static",
-//			VmSeg::Constant => "constant",
-//			VmSeg::This     => "this",
-//			VmSeg::That     => "that",
-//			VmSeg::Pointer  => "pointer",
-//			VmSeg::Temp     => "temp",
-//		};
-//		write!(f, "{}", s)
-//	}
-//}
+impl fmt::Display for VmSeg {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		let s = match self {
+			VmSeg::Argument => "argument",
+			VmSeg::Local    => "local",
+			VmSeg::Static   => "static",
+			VmSeg::Constant => "constant",
+			VmSeg::This     => "this",
+			VmSeg::That     => "that",
+			VmSeg::Pointer  => "pointer",
+			VmSeg::Temp     => "temp",
+		};
+		write!(f, "{}", s)
+	}
+}
 
 #[derive(Debug, PartialEq)]
 pub enum VmToken {
@@ -82,6 +85,12 @@ pub enum VmToken {
 	Segment(VmSeg),
 	Identifier(CompactString),
 	IntConst(u16),
+}
+
+impl fmt::Display for VmToken {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{:?}", self)
+	}
 }
 
 impl FromStr for VmToken {
@@ -203,6 +212,8 @@ impl<R: BufRead> Iterator for Tokenizer<R> {
 mod tests {
 	use std::io::{BufReader, Cursor};
 	use super::*;
+
+	// TODO: Implement unit tests for error paths; only tested happy paths!
 
 	#[test]
 	fn test_simple_function(){
