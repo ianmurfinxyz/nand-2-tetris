@@ -74,6 +74,24 @@ A=D-A   // A = (**SP + LCL[16]) - **SP (i.e. address to pop to)
 M=D-A   // *(LCL[16]) = (**SP + LCL[16]) - LCL[16] (i.e. address to pop to = pop value)
 ```
 
+generic version,
+
+```
+@SP
+M=M-1   // *SP = *SP - 1 (i.e. decrement stack pointer)
+A=M     // A = *SP
+D=M     // D = **SP (pop value)
+@segment
+D=D+M   // D = **SP + *segment (i.e. pop value + segment base memory address)
+@index
+D=D+A   // D= **SP + segment[index] (i.e. pop value + address to pop to)
+@SP
+A=M     // A = *SP
+A=M     // A = **SP (pop value)
+A=D-A   // A = (**SP + segment[index]) - **SP (i.e. address to pop to)
+M=D-A   // *(segment[index]) = (**SP + segment[index]) - segment[index] (i.e. address to pop to = pop value)
+```
+
 ### pop constant index
 
 ```
@@ -84,6 +102,28 @@ A=M
 M=D
 @SP
 M=M+1
+```
+
+this can actually be done more efficiently with 1 less instruction,
+
+```
+@index
+D=A
+@SP
+AM=M+1
+A=A-1
+M=D
+```
+
+or equivalently,
+
+```
+@index
+D=A
+@SP
+M=M+1
+A=M-1
+M=D
 ```
 
 this can be optimised for the index == 0 and index == 1 cases,
@@ -532,6 +572,8 @@ M=0
 
 a 3rd arg will clearly take more instructions, so it is worth inlining the pushes for nArgs <= 2.
 
+functionName label should have the format ```fileName.functionName```.
+
 ### return
 
 return routine by me,
@@ -654,6 +696,10 @@ ARG points to RAM location which stores the return address, hence if you don't b
 address, when you do ```*ARG=pop()```, you will overwrite the return address. Hence the Pong.asm
 solution is correct.
 
+calling the common return routine,
+
+
+
 ### label label
 
 simple inserts a label in the assembly, at the point the vm command is found.
@@ -664,7 +710,7 @@ simple inserts a label in the assembly, at the point the vm command is found.
 - labels consist of chars: [a-zA-Z_.:]; $ separates from function name, so cannot be in label part
 
 ```
-(functionName$label)
+(file.functionName$label)
 ```
 
 ### goto label

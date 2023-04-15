@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum VmCmd {
 	Function,
 	Return,
@@ -51,7 +51,7 @@ impl fmt::Display for VmCmd {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum VmSeg {
 	Argument,
 	Local,
