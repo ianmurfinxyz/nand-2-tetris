@@ -619,7 +619,7 @@ impl Coder {
 					let mut label = ctx.vm_file_name.clone();
 					label.push('.');
 					let mut buf = ['\0'; 3];
-					let mut i = 3;
+					let mut i = 2;
 					let mut num = index;
 					while num > 0 {
 						debug_assert!(i > 0);
