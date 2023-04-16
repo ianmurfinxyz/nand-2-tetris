@@ -43,7 +43,7 @@ pub struct Parser<R: BufRead> {
 }
 
 impl<R: BufRead> Parser<R> {
-	fn new(tokenizer: Tokenizer<R>) -> Self {
+	pub fn new(tokenizer: Tokenizer<R>) -> Self {
 		Parser{tokenizer}
 	}
 

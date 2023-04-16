@@ -17,8 +17,8 @@ struct ClapArgs {
 
 #[derive(Debug)]
 pub struct CliArgs {
-	input: Vec<PathBuf>,
-	output: String,
+	pub input: Vec<PathBuf>,
+	pub output: String,
 }
 
 enum InputError {

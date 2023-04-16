@@ -34,8 +34,8 @@ pub struct Coder {
 }
 
 pub struct InsContext {
-	vm_file_name: String,
-	vm_function_name: String,
+	pub vm_file_name: CompactString,
+	pub vm_function_name: CompactString,
 }
 
 impl Coder {
@@ -43,7 +43,7 @@ impl Coder {
 		Coder{call_count: 0, eq_count: 0, lt_count: 0, gt_count: 0}
 	}
 
-	pub fn write_core_impl<W: Write>(out: &mut W) -> std::io::Result<()> {
+	pub fn write_core_impl<W: Write>(&mut self, out: &mut W) -> Result<(), CodeError> {
 		let bootstrap_impl = format!("\
 			@{}
 			D=A
@@ -621,7 +621,7 @@ impl Coder {
 					if index as usize >= MAX_STATIC_VARIABLES {
 						return Err(CodeError::IndexOutOfBounds{segment: VmSeg::Static, index, bounds: 0..(MAX_STATIC_VARIABLES - 1)});
 					}
-					let mut label = CompactString::from(&ctx.vm_file_name);
+					let mut label = ctx.vm_file_name.clone();
 					label.push('.');
 					let mut buf = ['\0'; 3];
 					let mut i = 3;
