@@ -1,6 +1,7 @@
 use std::io::BufRead;
 use compact_str::CompactString;
 use crate::tokenizer::*;
+use crate::errors::*;
 
 #[derive(Debug, PartialEq)]
 pub enum VmIns {
@@ -21,21 +22,6 @@ pub enum VmIns {
 	Eq,
 	Lt,
 	Gt,
-}
-
-#[derive(Debug)]
-pub enum ParseError {
-	ExpectedCommand{received: Option<VmToken>},
-	ExpectedIdentifier{received: Option<VmToken>},
-	ExpectedIntConst{received: Option<VmToken>},
-	ExpectedSegment{received: Option<VmToken>},
-	TokenError(TokenError),
-}
-
-impl From<TokenError> for ParseError {
-	fn from(e: TokenError) -> Self {
-		ParseError::TokenError(e)
-	}
 }
 
 pub struct Parser<R: BufRead> {

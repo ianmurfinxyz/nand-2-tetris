@@ -1,9 +1,10 @@
-use std::io::{self, BufRead};
+use std::io::BufRead;
 use std::str::FromStr;
 use compact_str::CompactString;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fmt;
+use crate::errors::*;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum VmCmd {
@@ -143,18 +144,6 @@ impl FromStr for VmToken {
 			return Ok(VmToken::Identifier(CompactString::from(word)));
 		}
 		Err(TokenError::InvalidToken{word: CompactString::from(word)})
-	}
-}
-
-#[derive(Debug)]
-pub enum TokenError {
-	InvalidToken{word: CompactString},
-	IoError(io::Error),
-}
-
-impl From<io::Error> for TokenError {
-	fn from(e: io::Error) -> Self {
-		TokenError::IoError(e)
 	}
 }
 

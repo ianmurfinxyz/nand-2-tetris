@@ -1,8 +1,8 @@
-use std::io::{self, Write};
-use core::ops::Range;
+use std::io::Write;
 use compact_str::CompactString;
 use crate::tokenizer::*;
 use crate::parser::*;
+use crate::errors::*;
 
 const CALL_STACK_BASE_ADDRESS: u16 = 256;
 const TEMP_SEGMENT_BASE_ADDRESS: u16 = 5;
@@ -14,17 +14,6 @@ const LT_IMPL_LABEL: &'static str = "__LT_IMPL";
 const RETURN_IMPL_LABEL: &'static str = "__RETURN_IMPL";
 const CALL_IMPL_LABEL: &'static str = "__CALL_IMPL";
 const ENTRY_IMPL_LABEL: &'static str = "__ENTRY_IMPL";
-
-pub enum CodeError {
-	IndexOutOfBounds{segment: VmSeg, index: u16, bounds: Range<usize>},
-	IoError(io::Error),
-}
-
-impl From<io::Error> for CodeError {
-	fn from(e: io::Error) -> Self {
-		CodeError::IoError(e)
-	}
-}
 
 pub struct Coder {
 	call_count: usize,

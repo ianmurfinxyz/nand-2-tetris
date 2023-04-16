@@ -1,47 +1,25 @@
-use std::io::{self, BufReader, BufWriter, Write};
+use std::io::{BufReader, BufWriter, Write};
 use std::path::PathBuf;
 use std::fs::File;
 use crate::coder::*;
 use crate::tokenizer::*;
 use crate::parser::*;
+use crate::errors::*;
 
+mod errors;
 mod tokenizer;
 mod parser;
 mod coder;
 mod cli;
 
-enum TranslationError {
-	ParseError(ParseError),
-	CodeError(CodeError),
-	IoError(io::Error),
-}
-
-impl From<ParseError> for TranslationError {
-	fn from(e: ParseError) -> Self {
-		TranslationError::ParseError(e)
-	}
-}
-
-impl From<CodeError> for TranslationError {
-	fn from(e: CodeError) -> Self {
-		TranslationError::CodeError(e)
-	}
-}
-
-impl From<io::Error> for TranslationError {
-	fn from(e: io::Error) -> Self {
-		TranslationError::IoError(e)
-	}
-}
-
 fn translate_file<W: Write>(file: PathBuf, coder: &mut Coder, ctx: &mut InsContext, out_file: &mut W) -> Result<(), TranslationError> {
 	let vm_file = BufReader::new(File::open(file)?);
 	let tokenizer = Tokenizer::new(vm_file);
-	let mut parser = Parser::new(tokenizer);
+	let parser = Parser::new(tokenizer);
 	for ins in parser {
 		let ins = ins?;
-		if let VmIns::Function{name, ..} = ins {
-			ctx.vm_function_name = name;
+		if let VmIns::Function{ref name, ..} = ins {
+			ctx.vm_function_name = name.clone();
 		}
 		coder.write_vm_ins(out_file, ins, ctx)?;
 	}
@@ -63,18 +41,16 @@ fn translate<W: Write>(in_files: Vec<PathBuf>, out_file: &mut W) -> Result<(), T
 
 fn main() {
 	let args = cli::parse_args();
-
-	let mut out_file = match File::create(args.output) {
+	let out_file = match File::create(args.output) {
 		Ok(file) => file,
 		Err(e) => {
 			println!("error: failed to create output .asm file: {}", e);
 			std::process::exit(0);
 		}
 	};
-
 	let mut buf_out_file = BufWriter::new(out_file);
 	match translate(args.input, &mut buf_out_file) {
 		Ok(()) => (),
-		Err(e) => println!("{:?}", e),
+		Err(e) => log_translation_error(e),
 	}
 }
