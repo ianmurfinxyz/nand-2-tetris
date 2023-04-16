@@ -1,7 +1,9 @@
 use compact_str::CompactString;
 use core::ops::Range;
+use std::path::PathBuf;
 use std::io;
 use crate::tokenizer::{VmToken, VmSeg};
+use crate::InsContext;
 
 #[derive(Debug)]
 pub enum TokenError {
@@ -41,6 +43,19 @@ impl From<io::Error> for CodeError {
 	}
 }
 
+pub struct TranslationContext {
+	pub filepath: PathBuf,
+	pub ins_ctx: InsContext,
+	pub line: String,
+	pub line_num: usize,
+}
+
+impl TranslationContext {
+	pub fn new() -> Self {
+		TranslationContext{filepath: PathBuf::new(), ins_ctx: InsContext::new(), line: String::new(), line_num: 0}
+	}
+}
+
 pub enum TranslationError {
 	ParseError(ParseError),
 	CodeError(CodeError),
@@ -65,6 +80,59 @@ impl From<io::Error> for TranslationError {
 	}
 }
 
-pub fn log_translation_error(_error: TranslationError) {
-	println!("error");
+fn write_error(msg: &str, ctx: &TranslationContext) {
+	println!("{}, on line:\n[{}] {}", msg, ctx.line_num, ctx.line);
 }
+
+fn write_io_error(e: io::Error){
+	println!("io error: {}", e);
+}
+
+fn write_token_error(e: TokenError, ctx: &TranslationContext){
+	match e {
+		TokenError::IoError(e) => write_io_error(e),
+		TokenError::InvalidToken{word} => {
+			write_error(format!("token error: invalid token '{}'", word).as_str(), ctx);
+		},
+	}
+}
+
+fn write_parse_error(e: ParseError, ctx: &TranslationContext){
+	match e {
+		ParseError::ExpectedCommand{received} => {
+			write_error(format!("parse error: expected command, received {}", received.unwrap()).as_str(), ctx);
+		},
+		ParseError::ExpectedIdentifier{received} => {
+			write_error(format!("parse error: expected identifier, received {}", received.unwrap()).as_str(), ctx);
+		},
+		ParseError::ExpectedIntConst{received} => {
+			write_error(format!("parse error: expected integer constant, received {}", received.unwrap()).as_str(), ctx);
+		},
+		ParseError::ExpectedSegment{received} => {
+			write_error(format!("parse error: expected segment, received {}", received.unwrap()).as_str(), ctx);
+		},
+		ParseError::TokenError(e) => {
+			write_token_error(e, ctx);
+		},
+	}
+}
+
+fn write_code_error(e: CodeError, ctx: &TranslationContext){
+	match e {
+		CodeError::IoError(e) => write_io_error(e),
+		CodeError::IndexOutOfBounds{segment, index, bounds} => {
+			let msg = format!("code error: index '{}' overflows segment '{}'; segment bounds '[{},{}]'", 
+				index, segment, bounds.start, bounds.end);
+			write_error(&msg, ctx);
+		},
+	}
+}
+
+pub fn write_translation_error(e: TranslationError, ctx: &TranslationContext) {
+	match e {
+		TranslationError::IoError(e) => write_io_error(e),
+		TranslationError::ParseError(e) => write_parse_error(e, ctx),
+		TranslationError::CodeError(e) => write_code_error(e, ctx),
+	}
+}
+

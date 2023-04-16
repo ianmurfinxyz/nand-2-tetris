@@ -33,6 +33,14 @@ impl<R: BufRead> Parser<R> {
 		Parser{tokenizer}
 	}
 
+	pub fn get_line(&self) -> &str {
+		self.tokenizer.get_line()
+	}
+
+	pub fn get_line_num(&self) -> usize {
+		self.tokenizer.get_line_num()
+	}
+
 	fn parse_identifier(&mut self) -> Result<CompactString, ParseError> {
 		return match self.tokenizer.next() {
 			Some(Ok(VmToken::Identifier(identifier))) => Ok(identifier),
@@ -61,25 +69,26 @@ impl<R: BufRead> Parser<R> {
 	}
 
 	fn parse_command(&mut self, cmd: VmCmd) -> Result<VmIns, ParseError> {
-		match cmd {
-			VmCmd::Function => Ok(VmIns::Function{name: self.parse_identifier()?, locals_count: self.parse_int_const()?}),
-			VmCmd::Return => Ok(VmIns::Return),
-			VmCmd::Label => Ok(VmIns::Label{label: self.parse_identifier()?}),
-			VmCmd::IfGoto => Ok(VmIns::IfGoto{label: self.parse_identifier()?}),
-			VmCmd::Goto => Ok(VmIns::Goto{label: self.parse_identifier()?}),
-			VmCmd::Call => Ok(VmIns::Call{function: self.parse_identifier()?, args_count: self.parse_int_const()?}),
-			VmCmd::Push => Ok(VmIns::Push{segment: self.parse_segment()?, index: self.parse_int_const()?}),
-			VmCmd::Pop => Ok(VmIns::Pop{segment: self.parse_segment()?, index: self.parse_int_const()?}),
-			VmCmd::Add => Ok(VmIns::Add),
-			VmCmd::Sub => Ok(VmIns::Sub),
-			VmCmd::Neg => Ok(VmIns::Neg),
-			VmCmd::And => Ok(VmIns::And),
-			VmCmd::Or => Ok(VmIns::Or),
-			VmCmd::Not => Ok(VmIns::Not),
-			VmCmd::Eq => Ok(VmIns::Eq),
-			VmCmd::Lt => Ok(VmIns::Lt),
-			VmCmd::Gt => Ok(VmIns::Gt),
-		}
+		let ins = match cmd {
+			VmCmd::Function => VmIns::Function{name: self.parse_identifier()?, locals_count: self.parse_int_const()?},
+			VmCmd::Return => VmIns::Return,
+			VmCmd::Label => VmIns::Label{label: self.parse_identifier()?},
+			VmCmd::IfGoto => VmIns::IfGoto{label: self.parse_identifier()?},
+			VmCmd::Goto => VmIns::Goto{label: self.parse_identifier()?},
+			VmCmd::Call => VmIns::Call{function: self.parse_identifier()?, args_count: self.parse_int_const()?},
+			VmCmd::Push => VmIns::Push{segment: self.parse_segment()?, index: self.parse_int_const()?},
+			VmCmd::Pop => VmIns::Pop{segment: self.parse_segment()?, index: self.parse_int_const()?},
+			VmCmd::Add => VmIns::Add,
+			VmCmd::Sub => VmIns::Sub,
+			VmCmd::Neg => VmIns::Neg,
+			VmCmd::And => VmIns::And,
+			VmCmd::Or => VmIns::Or,
+			VmCmd::Not => VmIns::Not,
+			VmCmd::Eq => VmIns::Eq,
+			VmCmd::Lt => VmIns::Lt,
+			VmCmd::Gt => VmIns::Gt,
+		};
+		Ok(ins)
 	}
 }
 

@@ -27,6 +27,12 @@ pub struct InsContext {
 	pub vm_function_name: CompactString,
 }
 
+impl InsContext {
+	pub fn new() -> Self {
+		InsContext{vm_file_name: CompactString::new(""), vm_function_name: CompactString::new("")}
+	}
+}
+
 impl Coder {
 	pub fn new() -> Self {
 		Coder{call_count: 0, eq_count: 0, lt_count: 0, gt_count: 0}

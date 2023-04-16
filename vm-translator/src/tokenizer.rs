@@ -149,13 +149,22 @@ impl FromStr for VmToken {
 
 pub struct Tokenizer<R: BufRead> {
 	reader: R,
-	line: String,
 	tokens: Vec<VmToken>,
+	line: String,
+	line_num: usize,
 }
 
 impl<R: BufRead> Tokenizer<R> {
 	pub fn new(reader: R) -> Self {
-		Tokenizer{reader, line: String::new(), tokens: Vec::new()}
+		Tokenizer{reader, tokens: Vec::new(), line: String::new(), line_num: 0}
+	}
+
+	pub fn get_line(&self) -> &str {
+		self.line.as_str()
+	}
+
+	pub fn get_line_num(&self) -> usize {
+		self.line_num
 	}
 }
 
@@ -170,6 +179,7 @@ impl<R: BufRead> Iterator for Tokenizer<R> {
 					Ok(n) => n,
 					Err(e) => return Some(Err(TokenError::from(e))),
 				};
+				self.line_num += 1;
 				let mut s = self.line.as_mut_str();
 				if let Some(pos) = s.find("//"){
 					let (code, _comment) = s.split_at_mut(pos);
