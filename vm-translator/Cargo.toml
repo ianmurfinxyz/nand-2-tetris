@@ -11,3 +11,4 @@ path = "src/main.rs"
 compact_str = "0.7.0"
 regex = "1"
 lazy_static = "1.4.0"
+clap = { version = "4.0", features = ["derive"]}

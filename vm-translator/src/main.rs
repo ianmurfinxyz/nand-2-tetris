@@ -1,7 +1,9 @@
 mod tokenizer;
 mod parser;
 mod coder;
+mod cli;
 
 fn main() {
-    println!("Hello, world!");
+	let args = cli::parse_args();
+	println!("{:?}", args);
 }
