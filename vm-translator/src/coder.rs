@@ -7,12 +7,13 @@ use crate::parser::*;
 const CALL_STACK_BASE_ADDRESS: u16 = 256;
 const TEMP_SEGMENT_BASE_ADDRESS: u16 = 5;
 const MAX_STATIC_VARIABLES: usize = 240;
-const EQ_IMPL_LABEL: &'static str = "EQ_IMPL";
-const GT_IMPL_LABEL: &'static str = "GT_IMPL";
-const LT_IMPL_LABEL: &'static str = "LT_IMPL";
-const RETURN_IMPL_LABEL: &'static str = "RETURN_IMPL";
-const CALL_IMPL_LABEL: &'static str = "CALL_IMPL";
-const ENTRY_IMPL_LABEL: &'static str = "ENTRY_IMPL";
+
+const EQ_IMPL_LABEL: &'static str = "__EQ_IMPL";
+const GT_IMPL_LABEL: &'static str = "__GT_IMPL";
+const LT_IMPL_LABEL: &'static str = "__LT_IMPL";
+const RETURN_IMPL_LABEL: &'static str = "__RETURN_IMPL";
+const CALL_IMPL_LABEL: &'static str = "__CALL_IMPL";
+const ENTRY_IMPL_LABEL: &'static str = "__ENTRY_IMPL";
 
 pub enum CodeError {
 	IndexOutOfBounds{segment: VmSeg, index: u16, bounds: Range<usize>},
@@ -48,9 +49,23 @@ impl Coder {
 			D=A
 			@SP
 			M=D
+			@0
+			D=A
+			@R13
+			M=D
+			@sys.init
+			D=A
+			@R14
+			M=D
+			@__RET_SYS_INIT
+			D=A
 			@{}
 			0;JMP
-		", CALL_STACK_BASE_ADDRESS, ENTRY_IMPL_LABEL);
+			(__RET_SYS_INIT)
+			(__HANG)
+			@__HANG
+			0;JMP
+		", CALL_STACK_BASE_ADDRESS, CALL_IMPL_LABEL);
 		let eq_impl = format!("\
 			({})
 			@R15
@@ -61,12 +76,12 @@ impl Coder {
 			A=A-1
 			D=M-D
 			M=0
-			@END_EQ
+			@__END_EQ
 			D;JNE
 			@SP
 			A=M-1
 			M=-1
-			(END_EQ)
+			(__END_EQ)
 			@R15
 			A=M
 			0;JMP
@@ -81,12 +96,12 @@ impl Coder {
 			A=A-1
 			D=M-D
 			M=0
-			@END_GT
+			@__END_GT
 			D;JLE
 			@SP
 			A=M-1
 			M=-1
-			(END_GT)
+			(__END_GT)
 			@R15
 			A=M
 			0;JMP
@@ -101,12 +116,12 @@ impl Coder {
 			A=A-1
 			D=M-D
 			M=0
-			@END_LT
+			@__END_LT
 			D;JGE
 			@SP
 			A=M-1
 			M=-1
-			(END_LT)
+			(__END_LT)
 			@R15
 			A=M
 			0;JMP
@@ -196,22 +211,6 @@ impl Coder {
 			A=M
 			0;JMP
 		", CALL_IMPL_LABEL);
-		let entry_impl = format!("\
-			({})
-			@0
-			D=A
-			@R13
-			M=D
-			@sys.init
-			D=A
-			@R14
-			M=D
-			@RET_ADDRESS_SYS_INIT
-			D=A
-			@95
-			0;JMP
-			(RET_ADDRESS_SYS_INIT)
-		", ENTRY_IMPL_LABEL);
 	
 		write!(out, "{}", bootstrap_impl)?;
 		write!(out, "{}", eq_impl)?;
@@ -219,7 +218,6 @@ impl Coder {
 		write!(out, "{}", lt_impl)?;
 		write!(out, "{}", return_impl)?;
 		write!(out, "{}", call_impl)?;
-		write!(out, "{}", entry_impl)?;
 	
 		Ok(())
 	}
@@ -280,13 +278,13 @@ impl Coder {
 						({}.{})
 						@{}
 						D=A
-						(LOOP_{}.{})
+						(__LOOP_{}.{})
 						D=D-1
 						@SP
 						AM=M+1
 						A=A-1
 						M=0
-						@LOOP_{}.{}
+						@__LOOP_{}.{}
 						D;JGT
 					", ctx.vm_file_name, name, locals_count, ctx.vm_file_name, name, ctx.vm_file_name, name)?;
 				},
@@ -565,33 +563,33 @@ impl Coder {
 	
 		fn write_eq_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@RET_ADDRESS_EQ{}
+				@__RET_EQ{}
 				D=A
 				@{}
 				0;JMP
-				(RET_ADDRESS_EQ{})
+				(__RET_EQ{})
 			", count, EQ_IMPL_LABEL, count)?;
 			Ok(())
 		}
 	
 		fn write_lt_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@RET_ADDRESS_LT{}
+				@__RET_LT{}
 				D=A
 				@{}
 				0;JMP
-				(RET_ADDRESS_LT{})
+				(__RET_LT{})
 			", count, LT_IMPL_LABEL, count)?;
 			Ok(())
 		}
 	
 		fn write_gt_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@RET_ADDRESS_GT{}
+				@__RET_GT{}
 				D=A
 				@{}
 				0;JMP
-				(RET_ADDRESS_GT{})
+				(__RET_GT{})
 			", count, GT_IMPL_LABEL, count)?;
 			Ok(())
 		}
