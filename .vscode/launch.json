@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'n2tasm'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=n2tasm",
+                    "--package=n2t-assembler"
+                ],
+                "filter": {
+                    "name": "n2tasm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'n2tasm'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=n2tasm",
+                    "--package=n2t-assembler"
+                ],
+                "filter": {
+                    "name": "n2tasm",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'n2tvmt'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=n2tvmt",
+                    "--package=vm-translator"
+                ],
+                "filter": {
+                    "name": "n2tvmt",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'n2tvmt'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=n2tvmt",
+                    "--package=vm-translator"
+                ],
+                "filter": {
+                    "name": "n2tvmt",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
