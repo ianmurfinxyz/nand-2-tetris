@@ -40,171 +40,171 @@ impl Coder {
 
 	pub fn write_core_impl<W: Write>(&mut self, out: &mut W) -> Result<(), CodeError> {
 		let bootstrap_impl = format!("\
-			@{}
-			D=A
-			@SP
-			M=D
-			@0
-			D=A
-			@R13
-			M=D
-			@sys.init
-			D=A
-			@R14
-			M=D
-			@__RET_SYS_INIT
-			D=A
-			@{}
-			0;JMP
-			(__RET_SYS_INIT)
-			(__HANG)
-			@__HANG
-			0;JMP
+			@{}\n\
+			D=A\n\
+			@SP\n\
+			M=D\n\
+			@0\n\
+			D=A\n\
+			@R13\n\
+			M=D\n\
+			@sys.init\n\
+			D=A\n\
+			@R14\n\
+			M=D\n\
+			@__RET_SYS_INIT\n\
+			D=A\n\
+			@{}\n\
+			0;JMP\n\
+			(__RET_SYS_INIT)\n\
+			(__HANG)\n\
+			@__HANG\n\
+			0;JMP\n\
 		", CALL_STACK_BASE_ADDRESS, CALL_IMPL_LABEL);
 		let eq_impl = format!("\
-			({})
-			@R15
-			M=D
-			@SP
-			AM=M-1
-			D=M
-			A=A-1
-			D=M-D
-			M=0
-			@__END_EQ
-			D;JNE
-			@SP
-			A=M-1
-			M=-1
-			(__END_EQ)
-			@R15
-			A=M
-			0;JMP
+			({})\n\
+			@R15\n\
+			M=D\n\
+			@SP\n\
+			AM=M-1\n\
+			D=M\n\
+			A=A-1\n\
+			D=M-D\n\
+			M=0\n\
+			@__END_EQ\n\
+			D;JNE\n\
+			@SP\n\
+			A=M-1\n\
+			M=-1\n\
+			(__END_EQ)\n\
+			@R15\n\
+			A=M\n\
+			0;JMP\n\
 		", EQ_IMPL_LABEL);
 		let gt_impl = format!("\
-			({})
-			@R15
-			M=D
-			@SP
-			AM=M-1
-			D=M
-			A=A-1
-			D=M-D
-			M=0
-			@__END_GT
-			D;JLE
-			@SP
-			A=M-1
-			M=-1
-			(__END_GT)
-			@R15
-			A=M
-			0;JMP
+			({})\n\
+			@R15\n\
+			M=D\n\
+			@SP\n\
+			AM=M-1\n\
+			D=M\n\
+			A=A-1\n\
+			D=M-D\n\
+			M=0\n\
+			@__END_GT\n\
+			D;JLE\n\
+			@SP\n\
+			A=M-1\n\
+			M=-1\n\
+			(__END_GT)\n\
+			@R15\n\
+			A=M\n\
+			0;JMP\n\
 		", GT_IMPL_LABEL);
 		let lt_impl = format!("\
-			({})
-			@R15
-			M=D
-			@SP
-			AM=M-1
-			D=M
-			A=A-1
-			D=M-D
-			M=0
-			@__END_LT
-			D;JGE
-			@SP
-			A=M-1
-			M=-1
-			(__END_LT)
-			@R15
-			A=M
-			0;JMP
+			({})\n\
+			@R15\n\
+			M=D\n\
+			@SP\n\
+			AM=M-1\n\
+			D=M\n\
+			A=A-1\n\
+			D=M-D\n\
+			M=0\n\
+			@__END_LT\n\
+			D;JGE\n\
+			@SP\n\
+			A=M-1\n\
+			M=-1\n\
+			(__END_LT)\n\
+			@R15\n\
+			A=M\n\
+			0;JMP\n\
 		", LT_IMPL_LABEL);
 		let return_impl = format!("\
-			({})
-			@5
-			D=A
-			@LCL
-			A=M-D
-			D=M
-			@R13
-			M=D
-			@SP
-			AM=M-1
-			D=M
-			@ARG
-			A=M
-			M=D
-			D=A
-			@SP
-			M=D+1
-			@LCL
-			D=M
-			@R14
-			AM=D-1
-			D=M
-			@THAT
-			M=D
-			@R14
-			AM=M-1
-			D=M
-			@THIS
-			M=D
-			@R14
-			AM=M-1
-			D=M
-			@ARG
-			M=D
-			@R14
-			AM=M-1
-			D=M
-			@LCL
-			M=D
-			@R13
-			A=M
-			0;JMP
+			({})\n\
+			@5\n\
+			D=A\n\
+			@LCL\n\
+			A=M-D\n\
+			D=M\n\
+			@R13\n\
+			M=D\n\
+			@SP\n\
+			AM=M-1\n\
+			D=M\n\
+			@ARG\n\
+			A=M\n\
+			M=D\n\
+			D=A\n\
+			@SP\n\
+			M=D+1\n\
+			@LCL\n\
+			D=M\n\
+			@R14\n\
+			AM=D-1\n\
+			D=M\n\
+			@THAT\n\
+			M=D\n\
+			@R14\n\
+			AM=M-1\n\
+			D=M\n\
+			@THIS\n\
+			M=D\n\
+			@R14\n\
+			AM=M-1\n\
+			D=M\n\
+			@ARG\n\
+			M=D\n\
+			@R14\n\
+			AM=M-1\n\
+			D=M\n\
+			@LCL\n\
+			M=D\n\
+			@R13\n\
+			A=M\n\
+			0;JMP\n\
 		", RETURN_IMPL_LABEL);
 		let call_impl = format!("\
-			({})
-			@SP
-			A=M
-			M=D
-			@LCL
-			D=M
-			@SP
-			AM=M+1
-			M=D
-			@ARG
-			D=M
-			@SP
-			AM=M+1
-			M=D
-			@THIS
-			D=M
-			@SP
-			AM=M+1
-			M=D
-			@THAT
-			D=M
-			@SP
-			AM=M+1
-			M=D
-			@4
-			D=A
-			@R13
-			D=D+M
-			@SP
-			D=M-D
-			@ARG
-			M=D
-			@SP
-			MD=M+1
-			@LCL
-			M=D
-			@R14
-			A=M
-			0;JMP
+			({})\n\
+			@SP\n\
+			A=M\n\
+			M=D\n\
+			@LCL\n\
+			D=M\n\
+			@SP\n\
+			AM=M+1\n\
+			M=D\n\
+			@ARG\n\
+			D=M\n\
+			@SP\n\
+			AM=M+1\n\
+			M=D\n\
+			@THIS\n\
+			D=M\n\
+			@SP\n\
+			AM=M+1\n\
+			M=D\n\
+			@THAT\n\
+			D=M\n\
+			@SP\n\
+			AM=M+1\n\
+			M=D\n\
+			@4\n\
+			D=A\n\
+			@R13\n\
+			D=D+M\n\
+			@SP\n\
+			D=M-D\n\
+			@ARG\n\
+			M=D\n\
+			@SP\n\
+			MD=M+1\n\
+			@LCL\n\
+			M=D\n\
+			@R14\n\
+			A=M\n\
+			0;JMP\n\
 		", CALL_IMPL_LABEL);
 	
 		write!(out, "{}", bootstrap_impl)?;
@@ -243,44 +243,44 @@ impl Coder {
 			match locals_count {
 				0 => {
 					write!(out, "\
-						({}.{})
+						({}.{})\n\
 					", ctx.vm_file_name, name)?;
 				},
 				1 => {
 					write!(out, "\
-						({}.{})
-						@SP
-						AM=M+1
-						A=A-1
-						M=0
+						({}.{})\n\
+						@SP\n\
+						AM=M+1\n\
+						A=A-1\n\
+						M=0\n\
 					", ctx.vm_file_name, name)?;
 				},
 				2 => {
 					write!(out, "\
-						({}.{})
-						@SP
-						AM=M+1
-						A=A-1
-						M=0
-						@SP
-						AM=M+1
-						A=A-1
-						M=0
+						({}.{})\n\
+						@SP\n\
+						AM=M+1\n\
+						A=A-1\n\
+						M=0\n\
+						@SP\n\
+						AM=M+1\n\
+						A=A-1\n\
+						M=0\n\
 					", ctx.vm_file_name, name)?;
 				},
 				_ => {
 					write!(out, "\
-						({}.{})
-						@{}
-						D=A
-						(__LOOP_{}.{})
-						D=D-1
-						@SP
-						AM=M+1
-						A=A-1
-						M=0
-						@__LOOP_{}.{}
-						D;JGT
+						({}.{})\n\
+						@{}\n\
+						D=A\n\
+						(__LOOP_{}.{})\n\
+						D=D-1\n\
+						@SP\n\
+						AM=M+1\n\
+						A=A-1\n\
+						M=0\n\
+						@__LOOP_{}.{}\n\
+						D;JGT\n\
 					", ctx.vm_file_name, name, locals_count, ctx.vm_file_name, name, ctx.vm_file_name, name)?;
 				},
 			};
@@ -289,18 +289,18 @@ impl Coder {
 	
 		fn write_call_ins<W: Write>(out: &mut W, ctx: &InsContext, function: CompactString, args_count: u16, call_count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@{}
-				D=A
-				@R13
-				M=D
-				@{}.{}
-				D=A
-				@R14 
-				M=D
-				@{}.{}$ret.{}
-				D=A
-				@{}
-				0;JMP
+				@{}\n\
+				D=A\n\
+				@R13\n\
+				M=D\n\
+				@{}.{}\n\
+				D=A\n\
+				@R14 \n\
+				M=D\n\
+				@{}.{}$ret.{}\n\
+				D=A\n\
+				@{}\n\
+				0;JMP\n\
 			", args_count, ctx.vm_file_name, function, ctx.vm_file_name, function, call_count, CALL_IMPL_LABEL)?;
 			Ok(())
 		}
@@ -312,77 +312,77 @@ impl Coder {
 					match index {
 						0 => {
 							write!(out, "\
-								@SP
-								M=M+1
-								A=M-1
-								M=0
+								@SP\n\
+								M=M+1\n\
+								A=M-1\n\
+								M=0\n\
 							")?;
 						},
 						1 => {
 							write!(out, "\
-								@SP
-								M=M+1
-								A=M-1
-								M=1
+								@SP\n\
+								M=M+1\n\
+								A=M-1\n\
+								M=1\n\
 							")?;
 						},
 						_ => { 
 							write!(out, "\
-								@{}
-								D=A
-								@SP
-								M=M+1
-								A=M-1
-								M=D
+								@{}\n\
+								D=A\n\
+								@SP\n\
+								M=M+1\n\
+								A=M-1\n\
+								M=D\n\
 							", index)?;
 						},
 					}
 				},
 				VmSeg::Static => {
 					write!(out, "\
-						@{}
-						D=M
-						@SP
-						AM=M+1
-						A=A-1
-						M=D
+						@{}\n\
+						D=M\n\
+						@SP\n\
+						AM=M+1\n\
+						A=A-1\n\
+						M=D\n\
 					", label)?;
 				},
 				_ => {
 					match index {
 						0 => {
 							write!(out, "\
-								@{}
-								A=M
-								D=M
-								@SP
-								AM=M+1
-								A=A-1
-								M=D
+								@{}\n\
+								A=M\n\
+								D=M\n\
+								@SP\n\
+								AM=M+1\n\
+								A=A-1\n\
+								M=D\n\
 							", label)?;
 						},
 						1 => {
 							write!(out, "\
-								@{}
-								A=M+1
-								D=M
-								@SP
-								AM=M+1
-								A=A-1
-								M=D
+								@{}\n\
+								A=M+1\n\
+								D=M\n\
+								@SP\n\
+								AM=M+1\n\
+								A=A-1\n\
+								M=D\n\
 							", label)?;
 						},
 						_ => { 
 							write!(out, "\
-								@{}
-								D=A
-								@{}
-								A=M+D
-								D=M
-								@SP
-								AM=M+1
-								A=A-1
-								M=D
+								@{}\n\
+								D=A\n\
+								@{}\n\
+								A=M+D\n\
+								D=M\n\
+								@SP\n\
+								AM=M+1\n\
+								A=A-1\n\
+								M=D\n\
 							", index, label)?;
 						},
 					};
@@ -397,61 +397,61 @@ impl Coder {
 				VmSeg::Constant => (), // NOP
 				VmSeg::Static => {
 					write!(out, "\
-						@SP
-						M=M-1
-						A=M
-						D=M
-						@{}
-						M=D
+						@SP\n\
+						M=M-1\n\
+						A=M\n\
+						D=M\n\
+						@{}\n\
+						M=D\n\
 					", label)?;
 				},
 				_ => {
 					match index {
 						0 => {
 							write!(out, "\
-								@SP
-								M=M-1
-								A=M
-								D=M
-								@{}
-								D=D+M
-								@SP
-								A=M
-								A=M
-								A=D-A
-								M=D-A
+								@SP\n\
+								M=M-1\n\
+								A=M\n\
+								D=M\n\
+								@{}\n\
+								D=D+M\n\
+								@SP\n\
+								A=M\n\
+								A=M\n\
+								A=D-A\n\
+								M=D-A\n\
 							", label)?;
 						},
 						1 => {
 							write!(out, "\
-								@SP
-								M=M-1
-								A=M
-								D=M+1
-								@{}
-								D=D+M
-								@SP
-								A=M
-								A=M
-								A=D-A
-								M=D-A
+								@SP\n\
+								M=M-1\n\
+								A=M\n\
+								D=M+1\n\
+								@{}\n\
+								D=D+M\n\
+								@SP\n\
+								A=M\n\
+								A=M\n\
+								A=D-A\n\
+								M=D-A\n\
 							", label)?;
 						},
 						_ => { 
 							write!(out, "\
-								@SP
-								M=M-1
-								A=M
-								D=M+1
-								@{}
-								D=D+M
-								@{}
-								D=D+A
-								@SP
-								A=M
-								A=M
-								A=D-A
-								M=D-A
+								@SP\n\
+								M=M-1\n\
+								A=M\n\
+								D=M+1\n\
+								@{}\n\
+								D=D+M\n\
+								@{}\n\
+								D=D+A\n\
+								@SP\n\
+								A=M\n\
+								A=M\n\
+								A=D-A\n\
+								M=D-A\n\
 							", index, label)?;
 						},
 					}
@@ -462,129 +462,129 @@ impl Coder {
 	
 		fn write_label_ins<W: Write>(out: &mut W, ctx: &InsContext, label: CompactString) -> Result<(), CodeError> {
 			write!(out, "\
-				({}.{}${})
+				({}.{}${})\n\
 			", ctx.vm_file_name, ctx.vm_function_name, label)?;
 			Ok(())
 		}
 	
 		fn write_if_goto_ins<W: Write>(out: &mut W, ctx: &InsContext, label: CompactString) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				AM=M-1
-				D=M
-				@{}.{}${}
-				D;JNE
+				@SP\n\
+				AM=M-1\n\
+				D=M\n\
+				@{}.{}${}\n\
+				D;JNE\n\
 			", ctx.vm_file_name, ctx.vm_function_name, label)?;
 			Ok(())
 		}
 	
 		fn write_goto_ins<W: Write>(out: &mut W, ctx: &InsContext, label: CompactString) -> Result<(), CodeError> {
 			write!(out, "\
-				@{}.{}${}
-				0;JMP
+				@{}.{}${}\n\
+				0;JMP\n\
 			", ctx.vm_file_name, ctx.vm_function_name, label)?;
 			Ok(())
 		}
 	
 		fn write_return_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@{}
-				0;JMP
+				@{}\n\
+				0;JMP\n\
 			", RETURN_IMPL_LABEL)?;
 			Ok(())
 		}
 	
 		fn write_add_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				AM=M-1
-				D=M
-				A=A-1
-				M=D+M
+				@SP\n\
+				AM=M-1\n\
+				D=M\n\
+				A=A-1\n\
+				M=D+M\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_sub_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				AM=M-1
-				D=M
-				A=A-1
-				M=M-D
+				@SP\n\
+				AM=M-1\n\
+				D=M\n\
+				A=A-1\n\
+				M=M-D\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_neg_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				A=M-1
-				M=-M
+				@SP\n\
+				A=M-1\n\
+				M=-M\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_and_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				AM=M-1
-				D=M
-				A=A-1
-				M=D&M
+				@SP\n\
+				AM=M-1\n\
+				D=M\n\
+				A=A-1\n\
+				M=D&M\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_or_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				AM=M-1
-				D=M
-				A=A-1
-				M=D|M
+				@SP\n\
+				AM=M-1\n\
+				D=M\n\
+				A=A-1\n\
+				M=D|M\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_not_ins<W: Write>(out: &mut W) -> Result<(), CodeError> {
 			write!(out, "\
-				@SP
-				A=M-1
-				M=!M
+				@SP\n\
+				A=M-1\n\
+				M=!M\n\
 			")?;
 			Ok(())
 		}
 	
 		fn write_eq_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@__RET_EQ{}
-				D=A
-				@{}
-				0;JMP
-				(__RET_EQ{})
+				@__RET_EQ{}\n\
+				D=A\n\
+				@{}\n\
+				0;JMP\n\
+				(__RET_EQ{})\n\
 			", count, EQ_IMPL_LABEL, count)?;
 			Ok(())
 		}
 	
 		fn write_lt_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@__RET_LT{}
-				D=A
-				@{}
-				0;JMP
-				(__RET_LT{})
+				@__RET_LT{}\n\
+				D=A\n\
+				@{}\n\
+				0;JMP\n\
+				(__RET_LT{})\n\
 			", count, LT_IMPL_LABEL, count)?;
 			Ok(())
 		}
 	
 		fn write_gt_ins<W: Write>(out: &mut W, count: usize) -> Result<(), CodeError> {
 			write!(out, "\
-				@__RET_GT{}
-				D=A
-				@{}
-				0;JMP
-				(__RET_GT{})
+				@__RET_GT{}\n\
+				D=A\n\
+				@{}\n\
+				0;JMP\n\
+				(__RET_GT{})\n\
 			", count, GT_IMPL_LABEL, count)?;
 			Ok(())
 		}
