@@ -149,6 +149,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpu-emulator"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "compact_str",
+ "lazy_static",
+]
+
+[[package]]
 name = "enum-iterator"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

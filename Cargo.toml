@@ -2,4 +2,5 @@
 members = [
 	"assembler",
 	"vm-translator",
+	"cpu-emulator",
 ]
