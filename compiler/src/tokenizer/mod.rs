@@ -126,7 +126,7 @@ impl<R: BufRead> Tokenizer<R> {
 			return Ok(Some(Token::Keyword(keyword)));
 		}
 		lazy_static! {
-			static ref RX_IDENTIFIER: Regex = Regex::new(r"[\w.$:]+").expect("RX_IDENTIFIER invalid!");
+			static ref RX_IDENTIFIER: Regex = Regex::new(r"^[a-zA-Z_]+[a-zA-Z_\d]*").expect("RX_IDENTIFIER invalid!");
 		}
 		if RX_IDENTIFIER.is_match(&self.token) {
 			return Ok(Some(Token::Identifier(CompactString::from(self.token.as_str()))));
