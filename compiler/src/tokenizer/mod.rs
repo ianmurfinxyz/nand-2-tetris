@@ -1,9 +1,11 @@
+#![allow(dead_code)]
+
 mod char_reader;
 mod errors;
 
 use compact_str::CompactString;
 use lazy_static::lazy_static;
-use std::io::BufRead;
+use std::io::{self, BufRead};
 use std::collections::HashSet;
 use std::str::FromStr;
 use regex::Regex;
@@ -65,118 +67,105 @@ pub enum Token {
 }
 
 pub struct Tokenizer<R: BufRead> {
-	char_reader: CharReader<R>,
-	token_buf: String,
+	chars: CharReader<R>,
+	token: String,
 }
 
 impl<R: BufRead> Tokenizer<R> {
-	pub fn new(char_reader: CharReader<R>) -> Self {
-		Tokenizer{char_reader, token_buf: String::new()}
+	pub fn new(chars: CharReader<R>) -> Self {
+		Tokenizer{chars, token: String::new()}
 	}
 
-	fn next_token(&mut self) -> Result<Option<Token>, TokenError> {
-		self.token_buf.clear();
-		let char_reader = &mut self.char_reader;
-		while let Some(c) = char_reader.peek_char()? {
-			// Eat surplus whitespace...
-			if c.is_whitespace() { 
-				char_reader.next_char()?;
-				while let Some(c_next) = char_reader.peek_char()? {
-					if c_next.is_whitespace(){ char_reader.next_char()?; } else { break; }
-				}
-				if self.token_buf.is_empty() { continue; } else { break; }
+	fn next(&mut self) -> Result<Option<Token>, TokenError> {
+		self.token.clear();
+		while let Some(c) = self.chars.next()? {
+			if c.is_whitespace() {
+				continue;
 			}
-			// Comments and symbols are not included in the current token.
-			let maybe_comment = c == '/';
-			let maybe_symbol = SYMBOL_SET.contains(&c);
-			if (maybe_comment || maybe_symbol) && !self.token_buf.is_empty() {
-				break;
-			}
-			// Now safe to eat the peeked char.
-			char_reader.next_char()?;
-			// Parse all chars in string literal inline as it may contain whitespace.
-			if c == '"' {
-				while let Some(c_str) = char_reader.next_char()? {
-					if c_str == '"' {
-						break;
-					}
-					self.token_buf.push(c_str);
-				}
-				break;
-			}
-			// Eat any comments (single or multiline).
-			if maybe_comment {
-				if let Some(c_next) = char_reader.peek_char()? {
+			else if c == '/' {
+				if let Some(c_next) = self.chars.peek()? {
 					if c_next == '*' {
-						char_reader.next_char()?;
-						while let Some(c_skip) = char_reader.next_char()? {
-							if let Some(c_skip_next) = char_reader.next_char()? {
-								if c_skip == '*' && c_skip_next == '/' {
-									break
-								}
-							}
-						}
-						continue;
+						self.skip_multi_line_comment()?;
 					}
 					else if c_next == '/' {
-						char_reader.next_char()?;
-						while let Some(c_skip) = char_reader.next_char()? {
-							if c_skip == '\n' {
-								break
-							}
-						}
-						continue;
+						self.skip_line_comment()?;
+					}
+					else {
+						return Ok(Some(Token::Symbol('/')));
 					}
 				}
 			}
-			// Short-cut if we have only 1 char and it is a symbol.
-			if maybe_symbol {
+			else if c == '"' {
+				self.read_string_const()?;
+				return Ok(Some(Token::StrConst(CompactString::from(self.token.as_str()))));
+			}
+			else if SYMBOL_SET.contains(&c) {
 				return Ok(Some(Token::Symbol(c)));
 			}
-			self.token_buf.push(c);
+			else {
+				self.token.push(c);
+				break;
+			}
 		}
-		// Match the token buffer against the possible tokens...
-		if self.token_buf.is_empty() {
+		if self.token.is_empty() {
 			return Ok(None);
 		}
-		if let Ok(x) = self.token_buf.parse::<u16>(){
+		while let Some(c) = self.chars.peek()? {
+			if c.is_whitespace() || SYMBOL_SET.contains(&c) {
+				break;
+			}
+			else {
+				self.token.push(c);
+				self.chars.next()?;
+			}
+		}
+		if let Ok(x) = self.token.parse::<u16>(){
 			return Ok(Some(Token::IntConst(x)));
 		}
-		lazy_static! {
-			static ref RX_STR_CONST: Regex = Regex::new(r#"".*""#).expect("RX_STR_CONST invalid!");
-		}
-		if RX_STR_CONST.is_match(&self.token_buf) {
-			return Ok(Some(Token::StrConst(CompactString::from(self.token_buf.as_str()))));
-		}
-		if let Ok(keyword) = self.token_buf.parse::<Keyword>() {
+		if let Ok(keyword) = self.token.parse::<Keyword>() {
 			return Ok(Some(Token::Keyword(keyword)));
 		}
 		lazy_static! {
-			static ref RX_TOKEN: Regex = Regex::new(r"[\w.$:]+").expect("RX_TOKEN invalid!");
+			static ref RX_IDENTIFIER: Regex = Regex::new(r"[\w.$:]+").expect("RX_IDENTIFIER invalid!");
 		}
-		if RX_TOKEN.is_match(&self.token_buf) {
-			return Ok(Some(Token::Identifier(CompactString::from(self.token_buf.as_str()))));
+		if RX_IDENTIFIER.is_match(&self.token) {
+			return Ok(Some(Token::Identifier(CompactString::from(self.token.as_str()))));
 		}
-		Err(TokenError::InvalidToken(CompactString::from(self.token_buf.as_str())))
+		Err(TokenError::InvalidToken(CompactString::from(self.token.as_str())))
+	}
+
+	fn skip_line_comment(&mut self) -> Result<(), io::Error> {
+		self.chars.next()?;
+		while let Some(c) = self.chars.next()? {
+			if c == '\n' { break }
+		}
+		Ok(())
+	}
+
+	fn skip_multi_line_comment(&mut self) -> Result<(), io::Error> {
+		self.chars.next()?;
+		while let Some(c) = self.chars.next()? {
+			if let Some(c_next) = self.chars.next()? {
+				if c == '*' && c_next == '/' { break }
+			}
+		}
+		Ok(())
+	}
+
+	fn read_string_const(&mut self) -> Result<(), io::Error> {
+		while let Some(c) = self.chars.next()? {
+			if c == '"' { break; }
+			self.token.push(c);
+		}
+		Ok(())
 	}
 
 	pub fn get_line(&self) -> &str {
-		self.char_reader.get_line()
+		self.chars.get_line()
 	}
 
 	pub fn get_line_num(&self) -> usize {
-		self.char_reader.get_line_num()
-	}
-}
-
-impl<R: BufRead> Iterator for Tokenizer<R> {
-	type Item = Result<Token, TokenError>;
-	fn next(&mut self) -> Option<Self::Item> {
-		match self.next_token() {
-			Ok(Some(c)) => Some(Ok(c)),
-			Ok(None) => None,
-			Err(e) => Some(Err(e)),
-		}
+		self.chars.get_line_num()
 	}
 }
 
@@ -226,8 +215,8 @@ mod tests {
 		"#.to_string();
 
 		let reader = BufReader::new(Cursor::new(jack_code.into_bytes()));
-		let char_reader = CharReader::new(reader);
-		let mut tokenizer = Tokenizer::new(char_reader);
+		let chars = CharReader::new(reader);
+		let mut tokenizer = Tokenizer::new(chars);
 
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Class));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("Main")));
@@ -300,7 +289,7 @@ mod tests {
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("s")));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("string constant")));
+		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::StrConst(CompactString::from("string constant")));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
 		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("s")));
