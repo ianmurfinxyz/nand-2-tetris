@@ -21,7 +21,7 @@ lazy_static! {
 	};
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Keyword {
 	Class, Method, Function, Constructor, Int, Boolean, Char, Void, True, False,
 	Null, This, Let, Do, If, Else, While, Return, Field, Static, Var,
@@ -57,7 +57,7 @@ impl FromStr for Keyword {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
 	Keyword(Keyword),
 	Symbol(char),
@@ -68,16 +68,43 @@ pub enum Token {
 
 pub struct Tokenizer<R: BufRead> {
 	chars: CharReader<R>,
-	token: String,
+	buffer: String,
+	token: Option<Token>,
 }
 
 impl<R: BufRead> Tokenizer<R> {
 	pub fn new(chars: CharReader<R>) -> Self {
-		Tokenizer{chars, token: String::new()}
+		Tokenizer{chars, buffer: String::new(), token: None}
 	}
 
-	fn next(&mut self) -> Result<Option<Token>, TokenError> {
-		self.token.clear();
+	pub fn next(&mut self) -> Result<Option<Token>, TokenError> {
+		if self.token.is_none() {
+			self.read_token()
+		}
+		else {
+			let token = self.token.clone();
+			self.token = None;
+			Ok(token)
+		}
+	}
+
+	pub fn peek(&mut self) -> Result<Option<Token>, TokenError> {
+		if self.token.is_none() {
+			self.token = self.read_token()?;
+		}
+		Ok(self.token.clone())
+	}
+
+	pub fn get_line(&self) -> &str {
+		self.chars.get_line()
+	}
+
+	pub fn get_line_num(&self) -> usize {
+		self.chars.get_line_num()
+	}
+
+	fn read_token(&mut self) -> Result<Option<Token>, TokenError> {
+		self.buffer.clear();
 		while let Some(c) = self.chars.next()? {
 			if c.is_whitespace() {
 				continue;
@@ -97,17 +124,17 @@ impl<R: BufRead> Tokenizer<R> {
 			}
 			else if c == '"' {
 				self.read_string_const()?;
-				return Ok(Some(Token::StrConst(CompactString::from(self.token.as_str()))));
+				return Ok(Some(Token::StrConst(CompactString::from(self.buffer.as_str()))));
 			}
 			else if SYMBOL_SET.contains(&c) {
 				return Ok(Some(Token::Symbol(c)));
 			}
 			else {
-				self.token.push(c);
+				self.buffer.push(c);
 				break;
 			}
 		}
-		if self.token.is_empty() {
+		if self.buffer.is_empty() {
 			return Ok(None);
 		}
 		while let Some(c) = self.chars.peek()? {
@@ -115,23 +142,23 @@ impl<R: BufRead> Tokenizer<R> {
 				break;
 			}
 			else {
-				self.token.push(c);
+				self.buffer.push(c);
 				self.chars.next()?;
 			}
 		}
-		if let Ok(x) = self.token.parse::<u16>(){
+		if let Ok(x) = self.buffer.parse::<u16>(){
 			return Ok(Some(Token::IntConst(x)));
 		}
-		if let Ok(keyword) = self.token.parse::<Keyword>() {
+		if let Ok(keyword) = self.buffer.parse::<Keyword>() {
 			return Ok(Some(Token::Keyword(keyword)));
 		}
 		lazy_static! {
 			static ref RX_IDENTIFIER: Regex = Regex::new(r"^[a-zA-Z_]+[a-zA-Z_\d]*").expect("RX_IDENTIFIER invalid!");
 		}
-		if RX_IDENTIFIER.is_match(&self.token) {
-			return Ok(Some(Token::Identifier(CompactString::from(self.token.as_str()))));
+		if RX_IDENTIFIER.is_match(&self.buffer) {
+			return Ok(Some(Token::Identifier(CompactString::from(self.buffer.as_str()))));
 		}
-		Err(TokenError::InvalidToken(CompactString::from(self.token.as_str())))
+		Err(TokenError::InvalidToken(CompactString::from(self.buffer.as_str())))
 	}
 
 	fn skip_line_comment(&mut self) -> Result<(), io::Error> {
@@ -155,17 +182,9 @@ impl<R: BufRead> Tokenizer<R> {
 	fn read_string_const(&mut self) -> Result<(), io::Error> {
 		while let Some(c) = self.chars.next()? {
 			if c == '"' { break; }
-			self.token.push(c);
+			self.buffer.push(c);
 		}
 		Ok(())
-	}
-
-	pub fn get_line(&self) -> &str {
-		self.chars.get_line()
-	}
-
-	pub fn get_line_num(&self) -> usize {
-		self.chars.get_line_num()
 	}
 }
 
@@ -214,133 +233,143 @@ mod tests {
 			}
 		"#.to_string();
 
+		let expected = [
+			Token::Keyword(Keyword::Class),
+			Token::Identifier(CompactString::from("Main")),
+			Token::Symbol('{'),
+			Token::Keyword(Keyword::Static),
+			Token::Keyword(Keyword::Boolean),
+			Token::Identifier(CompactString::from("test")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Function),
+			Token::Keyword(Keyword::Void),
+			Token::Identifier(CompactString::from("main")),
+			Token::Symbol('('),
+			Token::Symbol(')'),
+			Token::Symbol('{'),
+			Token::Keyword(Keyword::Var),
+			Token::Identifier(CompactString::from("SquareGame")),
+			Token::Identifier(CompactString::from("game")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("game")),
+			Token::Symbol('='),
+			Token::Identifier(CompactString::from("SquareGame")),
+			Token::Symbol('.'),
+			Token::Identifier(CompactString::from("new")),
+			Token::Symbol('('),
+			Token::Symbol(')'),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Do),
+			Token::Identifier(CompactString::from("game")),
+			Token::Symbol('.'),
+			Token::Identifier(CompactString::from("run")),
+			Token::Symbol('('),
+			Token::Symbol(')'),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Do),
+			Token::Identifier(CompactString::from("game")),
+			Token::Symbol('.'),
+			Token::Identifier(CompactString::from("dispose")),
+			Token::Symbol('('),
+			Token::Symbol(')'),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Return),
+			Token::Symbol(';'),
+			Token::Symbol('}'),
+			Token::Keyword(Keyword::Function),
+			Token::Keyword(Keyword::Void),
+			Token::Identifier(CompactString::from("more")),
+			Token::Symbol('('),
+			Token::Symbol(')'),
+			Token::Symbol('{'),
+			Token::Keyword(Keyword::Var),
+			Token::Keyword(Keyword::Int),
+			Token::Identifier(CompactString::from("i")),
+			Token::Symbol(','),
+			Token::Identifier(CompactString::from("j")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Var),
+			Token::Identifier(CompactString::from("String")),
+			Token::Identifier(CompactString::from("s")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Var),
+			Token::Identifier(CompactString::from("Array")),
+			Token::Identifier(CompactString::from("a")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::If),
+			Token::Symbol('('),
+			Token::Keyword(Keyword::False),
+			Token::Symbol(')'),
+			Token::Symbol('{'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("s")),
+			Token::Symbol('='),
+			Token::StrConst(CompactString::from("string constant")),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("s")),
+			Token::Symbol('='),
+			Token::Keyword(Keyword::Null),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("a")),
+			Token::Symbol('['),
+			Token::IntConst(1),
+			Token::Symbol(']'),
+			Token::Symbol('='),
+			Token::Identifier(CompactString::from("a")),
+			Token::Symbol('['),
+			Token::IntConst(2),
+			Token::Symbol(']'),
+			Token::Symbol(';'),
+			Token::Symbol('}'),
+			Token::Keyword(Keyword::Else),
+			Token::Symbol('{'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("i")),
+			Token::Symbol('='),
+			Token::Identifier(CompactString::from("i")),
+			Token::Symbol('*'),
+			Token::Symbol('('),
+			Token::Symbol('-'),
+			Token::Identifier(CompactString::from("j")),
+			Token::Symbol(')'),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("j")),
+			Token::Symbol('='),
+			Token::Identifier(CompactString::from("j")),
+			Token::Symbol('/'),
+			Token::Symbol('('),
+			Token::Symbol('-'),
+			Token::IntConst(2),
+			Token::Symbol(')'),
+			Token::Symbol(';'),
+			Token::Keyword(Keyword::Let),
+			Token::Identifier(CompactString::from("i")),
+			Token::Symbol('='),
+			Token::Identifier(CompactString::from("i")),
+			Token::Symbol('|'),
+			Token::Identifier(CompactString::from("j")),
+			Token::Symbol(';'),
+			Token::Symbol('}'),
+			Token::Keyword(Keyword::Return),
+			Token::Symbol(';'),
+			Token::Symbol('}'),
+			Token::Symbol('}'),
+		];
+
 		let reader = BufReader::new(Cursor::new(jack_code.into_bytes()));
 		let chars = CharReader::new(reader);
-		let mut tokenizer = Tokenizer::new(chars);
 
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Class));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("Main")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('{'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Static));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Boolean));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("test")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Function));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Void));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("main")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('{'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Var));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("SquareGame")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("game")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("game")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("SquareGame")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('.'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("new")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Do));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("game")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('.'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("run")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Do));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("game")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('.'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("dispose")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Return));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('}'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Function));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Void));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("more")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('{'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Var));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Int));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("i")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(','));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("j")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Var));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("String")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("s")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Var));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("Array")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("a")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::If));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::False));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('{'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("s")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::StrConst(CompactString::from("string constant")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("s")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Null));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("a")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('['));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::IntConst(1));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(']'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("a")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('['));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::IntConst(2));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(']'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('}'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Else));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('{'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("i")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("i")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('*'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('-'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("j")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("j")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("j")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('/'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('('));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('-'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::IntConst(2));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(')'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Let));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("i")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('='));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("i")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('|'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Identifier(CompactString::from("j")));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('}'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Keyword(Keyword::Return));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol(';'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('}'));
-		assert_eq!(tokenizer.next().unwrap().unwrap(), Token::Symbol('}'));
+		let mut tokens = Tokenizer::new(chars);
+		let mut expect = expected.into_iter();
+
+		while let Ok(Some(token)) = tokens.peek() {
+			let ex = expect.next().unwrap();
+			assert_eq!(ex, token);
+			assert_eq!(ex, tokens.next().unwrap().unwrap());
+		}
 	}
 }
