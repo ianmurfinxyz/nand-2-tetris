@@ -63,21 +63,6 @@ impl<R: BufRead> CharReader<R> {
 		Ok(None)
 	}
 
-	pub fn peek_peek(&mut self) -> Result<Option<char>, io::Error> {
-		while self.read_line.len() <= 1 {
-			let first = self.read_line.pop();
-			let count = self.fill_read_line()?;
-			if let Some(c) = first {
-				self.full_line.insert(0, c);
-				self.read_line.push(c);
-			}
-			if count == 0 {
-				return Ok(None);
-			}
-		}
-		Ok(Some(self.read_line.chars().rev().nth(1).unwrap()))
-	}
-
 	pub fn get_line(&self) -> &str {
 		self.full_line.as_str()
 	}
@@ -104,11 +89,7 @@ mod tests {
 		let expected = ['a','b','\n','\n','d','e','\n','o','p','\n','\n','\n','a','d','w'].to_vec();
 		for i in 0..expected.len() {
 			let c = expected[i];
-			let c_next = if i + 1 == expected.len() { None } else { Some(expected[i + 1]) };
 			assert_eq!(c, char_reader.peek().unwrap().unwrap());
-			if let Some(c_next) = c_next {
-				assert_eq!(c_next, char_reader.peek_peek().unwrap().unwrap());
-			}
 			assert_eq!(c, char_reader.next().unwrap().unwrap());
 		}
 	}
