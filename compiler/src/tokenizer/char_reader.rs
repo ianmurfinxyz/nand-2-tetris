@@ -42,13 +42,9 @@ impl<R: BufRead> CharReader<R> {
 		Ok(n)
 	}
 
-	pub fn next_char(&mut self) -> Result<Option<char>, io::Error> {
+	pub fn next(&mut self) -> Result<Option<char>, io::Error> {
 		if self.read_line.is_empty() {
-			match self.fill_read_line() {
-				Ok(0) => return Ok(None),
-				Ok(_) => (),
-				Err(e) => return Err(e),
-			}
+			self.fill_read_line()?;
 		}
 		if let Some(c) = self.read_line.pop() {
 			self.char_offset += 1;
@@ -57,18 +53,29 @@ impl<R: BufRead> CharReader<R> {
 		Ok(None)
 	}
 
-	pub fn peek_char(&mut self) -> Result<Option<char>, io::Error> {
+	pub fn peek(&mut self) -> Result<Option<char>, io::Error> {
 		if self.read_line.is_empty() {
-			match self.fill_read_line() {
-				Ok(0) => return Ok(None),
-				Ok(_) => (),
-				Err(e) => return Err(e),
-			}
+			self.fill_read_line()?;
 		}
 		if !self.read_line.is_empty() {
 			return Ok(Some(self.read_line.chars().rev().next().unwrap()));
 		}
 		Ok(None)
+	}
+
+	pub fn peek_peek(&mut self) -> Result<Option<char>, io::Error> {
+		while self.read_line.len() <= 1 {
+			let first = self.read_line.pop();
+			let count = self.fill_read_line()?;
+			if let Some(c) = first {
+				self.full_line.insert(0, c);
+				self.read_line.push(c);
+			}
+			if count == 0 {
+				return Ok(None);
+			}
+		}
+		Ok(Some(self.read_line.chars().rev().nth(1).unwrap()))
 	}
 
 	pub fn get_line(&self) -> &str {
@@ -84,17 +91,6 @@ impl<R: BufRead> CharReader<R> {
 	}
 }
 
-impl<R: BufRead> Iterator for CharReader<R> {
-	type Item = Result<char, io::Error>;
-	fn next(&mut self) -> Option<Self::Item> {
-		match self.next_char() {
-			Ok(Some(c)) => Some(Ok(c)),
-			Ok(None) => None,
-			Err(e) => Some(Err(e)),
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use std::io::{BufReader, Cursor};
@@ -104,10 +100,16 @@ mod tests {
 	fn test_char_reader(){
 		let data = "ab\n\r\nde\rop\r\n\r\n\nadw".to_string();
 		let reader = BufReader::new(Cursor::new(data.into_bytes()));
-		let char_reader = CharReader::new(reader);
+		let mut char_reader = CharReader::new(reader);
 		let expected = ['a','b','\n','\n','d','e','\n','o','p','\n','\n','\n','a','d','w'].to_vec();
-		for (i, c) in char_reader.enumerate() {
-			assert_eq!(c.unwrap(), expected[i]);
+		for i in 0..expected.len() {
+			let c = expected[i];
+			let c_next = if i + 1 == expected.len() { None } else { Some(expected[i + 1]) };
+			assert_eq!(c, char_reader.peek().unwrap().unwrap());
+			if let Some(c_next) = c_next {
+				assert_eq!(c_next, char_reader.peek_peek().unwrap().unwrap());
+			}
+			assert_eq!(c, char_reader.next().unwrap().unwrap());
 		}
 	}
 }
