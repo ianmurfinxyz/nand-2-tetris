@@ -203,6 +203,9 @@ mod tests {
 			
 			// (derived from projects/09/Square/Main.jack, with testing additions)
 			
+			/** Initializes a new Square Dance game and starts running it. */
+			/* Another comment. */
+			
 			class Main {
 			    static boolean test;    // Added for testing -- there is no static Keyword
 			                            // in the Square files.
